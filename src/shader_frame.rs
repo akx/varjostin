@@ -6,12 +6,24 @@ use eframe::epaint::PaintCallbackInfo;
 use egui::mutex::Mutex;
 use egui::{Margin, Stroke, Ui};
 use egui_glow::glow;
+use std::sync::mpsc::Sender;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+pub struct ShaderCompileResponse {
+    pub duration: Duration,
+    pub error: Option<eyre::Error>,
+}
+
+pub struct ShaderCompileRequest {
+    pub fragment_source: String,
+    pub response_sender: Sender<ShaderCompileResponse>,
+}
 
 pub struct Custom3d {
     shader_frame: Arc<Mutex<ShaderFrame>>,
     init_time: Instant,
+    shader_compile_request: Option<ShaderCompileRequest>,
     pub mouse_x: f32,
     pub mouse_y: f32,
     pub frame: u64,
@@ -31,6 +43,7 @@ impl Custom3d {
         let gl = cc.gl.as_ref()?;
         Some(Self {
             shader_frame: Arc::new(Mutex::new(ShaderFrame::new(gl)?)),
+            shader_compile_request: None,
             mouse_x: 0.0,
             mouse_y: 0.0,
             frame: 0,
@@ -41,6 +54,17 @@ impl Custom3d {
     pub(crate) fn reset(&mut self) {
         self.init_time = Instant::now();
         self.frame = 0;
+    }
+
+    pub(crate) fn request_shader_compile(
+        &mut self,
+        fragment_source: String,
+        response_sender: Sender<ShaderCompileResponse>,
+    ) {
+        self.shader_compile_request = Some(ShaderCompileRequest {
+            fragment_source,
+            response_sender,
+        });
     }
 
     pub fn update(&mut self, _ctx: &egui::Context, ui: &mut Ui, fps: f32) {
@@ -65,11 +89,25 @@ impl Custom3d {
                     frame: self.frame,
                     fps,
                 };
+                let shader_compile_request = self.shader_compile_request.take();
                 self.frame += 1;
                 let f = self.shader_frame.clone();
 
                 let cb = egui_glow::CallbackFn::new(move |info, painter| {
-                    f.lock().paint(painter.gl(), &info, &draw_info);
+                    let mut fl = f.lock();
+                    if let Some(request) = &shader_compile_request {
+                        let t0 = Instant::now();
+                        let fr = fl.set_shader(painter.gl(), &request.fragment_source);
+                        let duration = Instant::now().duration_since(t0);
+                        request
+                            .response_sender
+                            .send(ShaderCompileResponse {
+                                duration,
+                                error: fr.err(),
+                            })
+                            .ok();
+                    }
+                    fl.paint(painter.gl(), &info, &draw_info);
                 });
 
                 let callback = egui::PaintCallback {

@@ -1,9 +1,20 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-// When compiling natively:
+use clap::Parser;
+use std::path::PathBuf;
+use varjostin::VarjostinApp;
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    #[arg(short, long, env = "VARJOSTIN_SHADER")]
+    shader: Option<PathBuf>,
+}
+
 fn main() -> eframe::Result {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+    let cli = Cli::parse();
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -14,6 +25,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "varjostin",
         native_options,
-        Box::new(|cc| Ok(Box::new(varjostin::VarjostinApp::new(cc)))),
+        Box::new(|cc| Ok(Box::new(VarjostinApp::new(cc, cli.shader)))),
     )
 }

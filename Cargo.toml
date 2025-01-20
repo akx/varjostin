@@ -20,6 +20,7 @@ log = "0.4"
 serde = { version = "1", features = ["derive"] }
 glsl = "7.0.0"
 eyre = "0.6.12"
+clap = { version = "4.5.26", features = ["derive", "env"] }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
