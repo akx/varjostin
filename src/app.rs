@@ -2,7 +2,7 @@ use crate::file_change::{has_changed, FileChangeState};
 use crate::frame_history::FrameHistory;
 use crate::shader_frame::{Custom3d, ShaderCompileResponse};
 use eframe::glow;
-use egui::{FontData, FontDefinitions, FontFamily};
+use egui::{Align, FontData, FontDefinitions, FontFamily, Label, Pos2, Rect, RichText};
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -63,78 +63,112 @@ impl VarjostinApp {
             shader_change_state: None,
         }
     }
-}
 
-impl eframe::App for VarjostinApp {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn check_shader_state(&mut self) {
         let change_res = has_changed(
             self.shader_path.as_ref().unwrap(),
             &self.shader_change_state,
             Duration::from_millis(200),
         );
-        if let Ok(Some(new_state)) = change_res {
-            self.shader_change_state = Some(new_state);
-            match std::fs::read_to_string(self.shader_path.as_ref().unwrap()) {
-                Ok(fragment_source) => {
-                    self.custom3d.request_shader_compile(
-                        fragment_source,
-                        self.shader_compile_result_outbox.clone(),
-                    );
+        match change_res {
+            Ok(Some(new_state)) => {
+                eprintln!("Shader changed: {:?}", new_state);
+                self.shader_change_state = Some(new_state);
+                match std::fs::read_to_string(self.shader_path.as_ref().unwrap()) {
+                    Ok(fragment_source) => {
+                        self.custom3d.request_shader_compile(
+                            fragment_source,
+                            self.shader_compile_result_outbox.clone(),
+                        );
+                    }
+                    Err(e) => {
+                        self.shader_change_state = None;
+                        self.last_shader_compile_result = Some(ShaderCompileResponse {
+                            duration: Duration::default(),
+                            error: Some(eyre::eyre!(e)),
+                        });
+                    }
                 }
-                Err(e) => {
-                    self.last_shader_compile_result = Some(ShaderCompileResponse {
-                        duration: std::time::Duration::default(),
-                        error: Some(eyre::eyre!(e)),
-                    });
-                }
+            }
+            Ok(None) => {}
+            Err(e) => {
+                self.shader_change_state = None;
+                self.last_shader_compile_result = Some(ShaderCompileResponse {
+                    duration: Duration::default(),
+                    error: Some(eyre::eyre!(e)),
+                });
             }
         }
         if let Ok(result) = self.shader_compile_result_inbox.try_recv() {
             self.last_shader_compile_result = Some(result);
         }
-        let last_shader_compile_result = self.last_shader_compile_result.as_ref();
+    }
+}
 
+impl eframe::App for VarjostinApp {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.check_shader_state();
+        let last_shader_compile_result = self.last_shader_compile_result.as_ref();
         self.frame_history
             .on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
         let esc_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
         if esc_pressed {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
-        egui::SidePanel::right("settings")
-            .resizable(false)
-            .max_width(250f32)
-            .show(ctx, |ui| {
-                ui.group(|ui| {
-                    ui.label("Shader");
-                    ui.text_edit_singleline(&mut self.edit_shader_path);
-                    if ui.button("Set").clicked() {
+        egui::TopBottomPanel::top("menu").show(ctx, |ui| {
+            ui.with_layout(
+                egui::Layout::left_to_right(Align::Min).with_cross_justify(true),
+                |ui| {
+                    if ui
+                        .text_edit_singleline(&mut self.edit_shader_path)
+                        .lost_focus()
+                    {
                         self.shader_path = Some(PathBuf::from(&self.edit_shader_path));
                     }
-                    if let Some(result) = last_shader_compile_result {
-                        if let Some(e) = &result.error {
-                            ui.label("Error:");
-                            ui.label(e.to_string());
-                        } else {
-                            ui.label(format!("Compiled in {:?}", result.duration));
-                        }
+                    if ui.button("Reset time").clicked() {
+                        self.custom3d.reset();
                     }
-                });
-                self.frame_history.ui(ui);
-                ui.checkbox(&mut self.continuous, "Update continuously");
-                ui.group(|ui| {
                     ui.label(format!("Time: {:.2}", self.custom3d.curr_time()));
                     ui.label(format!("Frame: {}", self.custom3d.frame));
                     ui.label(format!(
                         "Mouse: {}x{}",
                         self.custom3d.mouse_x as i32, self.custom3d.mouse_y as i32
                     ));
-                    if ui.button("Reset time").clicked() {
-                        self.custom3d.reset();
-                    }
-                });
+                },
+            );
+        });
+        egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut self.continuous, "Update continuously");
+                ui.label(format!(
+                    "Mean: {:.2} ms/f ({:.1} FPS)",
+                    1e3 * self.frame_history.mean_frame_time(),
+                    self.frame_history.fps()
+                ));
+                if let Some(result) = last_shader_compile_result {
+                    ui.label(format!("Compiled in {:?}", result.duration));
+                }
             });
+        });
+        // egui::SidePanel::right("settings")
+        //     .resizable(false)
+        //     .max_width(250f32)
+        //     .show(ctx, |ui| {
+        //         ui.group(|ui| {});
+        //     });
         egui::CentralPanel::default().show(ctx, |ui| {
             self.custom3d.update(ctx, ui, self.frame_history.fps());
+            if let Some(result) = last_shader_compile_result {
+                if let Some(e) = &result.error {
+                    let lbl = Label::new(RichText::new(e.to_string()).color(egui::Color32::RED))
+                        .halign(Align::Min);
+                    let offs = Pos2::new(5.0, 5.0);
+                    ui.put(
+                        Rect::from_min_size(offs, ui.available_size() - offs.to_vec2()),
+                        lbl,
+                    );
+                }
+            }
         });
         if self.continuous {
             ctx.request_repaint();

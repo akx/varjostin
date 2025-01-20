@@ -31,12 +31,4 @@ impl FrameHistory {
     pub fn fps(&self) -> f32 {
         1.0 / self.frame_times.mean_time_interval().unwrap_or_default()
     }
-
-    pub fn ui(&self, ui: &mut egui::Ui) {
-        ui.label(format!(
-            "Mean: {:.2} ms/f ({:.1} FPS)",
-            1e3 * self.mean_frame_time(),
-            self.fps()
-        ));
-    }
 }

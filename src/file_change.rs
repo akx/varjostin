@@ -1,11 +1,17 @@
 use std::path::Path;
 use std::time::{Instant, SystemTime};
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub(crate) struct FileChangeState {
     checked_at: Instant,
     last_modified: SystemTime,
     size: u64,
+}
+
+impl FileChangeState {
+    fn state_equal(&self, other: &Self) -> bool {
+        self.last_modified == other.last_modified && self.size == other.size
+    }
 }
 
 pub fn has_changed(
@@ -25,7 +31,7 @@ pub fn has_changed(
         size: stat.len(),
     };
     if let Some(last_state) = last_state {
-        if *last_state == new_state {
+        if new_state.state_equal(last_state) {
             return Ok(None); // No change
         }
     }

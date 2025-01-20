@@ -4,7 +4,7 @@ use crate::gl::compile_program;
 use eframe::egui_glow;
 use eframe::epaint::PaintCallbackInfo;
 use egui::mutex::Mutex;
-use egui::{Margin, Stroke, Ui};
+use egui::Ui;
 use egui_glow::glow;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
@@ -68,54 +68,51 @@ impl Custom3d {
     }
 
     pub fn update(&mut self, _ctx: &egui::Context, ui: &mut Ui, fps: f32) {
-        egui::Frame::canvas(ui.style())
-            .inner_margin(Margin::from(0f32))
-            .stroke(Stroke::NONE)
-            .show(ui, |ui| {
-                let (rect, response) =
-                    ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
-                match response.hover_pos() {
-                    Some(pos) => {
-                        self.mouse_x = pos.x;
-                        self.mouse_y = pos.y;
-                    }
-                    None => {}
+        egui::Frame::none().show(ui, |ui| {
+            let (rect, response) =
+                ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
+            match response.hover_pos() {
+                Some(pos) => {
+                    self.mouse_x = pos.x;
+                    self.mouse_y = pos.y;
                 }
-                let draw_info = DrawInfo {
-                    mouse_x: self.mouse_x,
-                    mouse_y: self.mouse_y,
-                    mouse_down: response.clicked(),
-                    curr_time: self.curr_time(),
-                    frame: self.frame,
-                    fps,
-                };
-                let shader_compile_request = self.shader_compile_request.take();
-                self.frame += 1;
-                let f = self.shader_frame.clone();
+                None => {}
+            }
+            let draw_info = DrawInfo {
+                mouse_x: self.mouse_x,
+                mouse_y: self.mouse_y,
+                mouse_down: response.clicked(),
+                curr_time: self.curr_time(),
+                frame: self.frame,
+                fps,
+            };
+            let shader_compile_request = self.shader_compile_request.take();
+            self.frame += 1;
+            let f = self.shader_frame.clone();
 
-                let cb = egui_glow::CallbackFn::new(move |info, painter| {
-                    let mut fl = f.lock();
-                    if let Some(request) = &shader_compile_request {
-                        let t0 = Instant::now();
-                        let fr = fl.set_shader(painter.gl(), &request.fragment_source);
-                        let duration = Instant::now().duration_since(t0);
-                        request
-                            .response_sender
-                            .send(ShaderCompileResponse {
-                                duration,
-                                error: fr.err(),
-                            })
-                            .ok();
-                    }
-                    fl.paint(painter.gl(), &info, &draw_info);
-                });
-
-                let callback = egui::PaintCallback {
-                    rect,
-                    callback: Arc::new(cb),
-                };
-                ui.painter().add(callback);
+            let cb = egui_glow::CallbackFn::new(move |info, painter| {
+                let mut fl = f.lock();
+                if let Some(request) = &shader_compile_request {
+                    let t0 = Instant::now();
+                    let fr = fl.set_shader(painter.gl(), &request.fragment_source);
+                    let duration = Instant::now().duration_since(t0);
+                    request
+                        .response_sender
+                        .send(ShaderCompileResponse {
+                            duration,
+                            error: fr.err(),
+                        })
+                        .ok();
+                }
+                fl.paint(painter.gl(), &info, &draw_info);
             });
+
+            let callback = egui::PaintCallback {
+                rect,
+                callback: Arc::new(cb),
+            };
+            ui.painter().add(callback);
+        });
     }
 
     pub fn curr_time(&mut self) -> f32 {
