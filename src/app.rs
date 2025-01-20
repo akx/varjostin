@@ -1,8 +1,10 @@
 use crate::file_change::{has_changed, FileChangeState};
 use crate::frame_history::FrameHistory;
-use crate::shader_frame::{Custom3d, ShaderCompileResponse};
+use crate::shader_frame::{Custom3d, ShaderCompileResponse, UniformsValues};
+use crate::uniforms_box;
 use eframe::glow;
 use egui::{Align, FontData, FontDefinitions, FontFamily, Label, Pos2, Rect, RichText};
+use egui_extras::{Size, StripBuilder};
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -17,6 +19,7 @@ pub struct VarjostinApp {
     shader_path: Option<PathBuf>,
     edit_shader_path: String,
     shader_change_state: Option<FileChangeState>,
+    uniforms_values: UniformsValues,
 }
 
 fn get_fonts() -> FontDefinitions {
@@ -61,6 +64,7 @@ impl VarjostinApp {
             last_shader_compile_result: None,
             edit_shader_path,
             shader_change_state: None,
+            uniforms_values: UniformsValues::default(),
         }
     }
 
@@ -85,6 +89,7 @@ impl VarjostinApp {
                         self.shader_change_state = None;
                         self.last_shader_compile_result = Some(ShaderCompileResponse {
                             duration: Duration::default(),
+                            preparse_result: None,
                             error: Some(eyre::eyre!(e)),
                         });
                     }
@@ -95,6 +100,7 @@ impl VarjostinApp {
                 self.shader_change_state = None;
                 self.last_shader_compile_result = Some(ShaderCompileResponse {
                     duration: Duration::default(),
+                    preparse_result: None,
                     error: Some(eyre::eyre!(e)),
                 });
             }
@@ -124,16 +130,27 @@ impl eframe::App for VarjostinApp {
                         .lost_focus()
                     {
                         self.shader_path = Some(PathBuf::from(&self.edit_shader_path));
+                        self.shader_change_state = None;
                     }
                     if ui.button("Reset time").clicked() {
                         self.custom3d.reset();
                     }
-                    ui.label(format!("Time: {:.2}", self.custom3d.curr_time()));
-                    ui.label(format!("Frame: {}", self.custom3d.frame));
-                    ui.label(format!(
-                        "Mouse: {}x{}",
-                        self.custom3d.mouse_x as i32, self.custom3d.mouse_y as i32
-                    ));
+                    StripBuilder::new(ui)
+                        .sizes(Size::exact(80.0), 3)
+                        .horizontal(|mut strip| {
+                            for lbl in &[
+                                format!("Time: {:.2}", self.custom3d.curr_time()),
+                                format!("Frame: {}", self.custom3d.frame),
+                                format!(
+                                    "Mouse: {}x{}",
+                                    self.custom3d.mouse_x as i32, self.custom3d.mouse_y as i32
+                                ),
+                            ] {
+                                strip.cell(|ui| {
+                                    ui.label(lbl);
+                                });
+                            }
+                        });
                 },
             );
         });
@@ -150,14 +167,19 @@ impl eframe::App for VarjostinApp {
                 }
             });
         });
-        // egui::SidePanel::right("settings")
-        //     .resizable(false)
-        //     .max_width(250f32)
-        //     .show(ctx, |ui| {
-        //         ui.group(|ui| {});
-        //     });
+        if let Some(result) = last_shader_compile_result {
+            if let Some(Ok(ppr)) = &result.preparse_result {
+                egui::SidePanel::right("settings")
+                    .resizable(false)
+                    .max_width(250f32)
+                    .show(ctx, |ui| {
+                        uniforms_box::uniforms_box(&mut self.uniforms_values, ppr, ui);
+                    });
+            }
+        }
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.custom3d.update(ctx, ui, self.frame_history.fps());
+            self.custom3d
+                .update(ctx, ui, self.frame_history.fps(), &self.uniforms_values);
             if let Some(result) = last_shader_compile_result {
                 if let Some(e) = &result.error {
                     let lbl = Label::new(RichText::new(e.to_string()).color(egui::Color32::RED))

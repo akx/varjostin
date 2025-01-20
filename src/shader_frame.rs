@@ -1,8 +1,11 @@
 #![allow(clippy::undocumented_unsafe_blocks)]
 
 use crate::gl::compile_program;
+use crate::shader_parser::{preparse_shader, PreparseResult};
 use eframe::egui_glow;
 use eframe::epaint::PaintCallbackInfo;
+use eframe::glow::NativeProgram;
+use egui::ahash::HashMap;
 use egui::mutex::Mutex;
 use egui::Ui;
 use egui_glow::glow;
@@ -12,6 +15,7 @@ use std::time::{Duration, Instant};
 
 pub struct ShaderCompileResponse {
     pub duration: Duration,
+    pub preparse_result: Option<eyre::Result<PreparseResult>>,
     pub error: Option<eyre::Error>,
 }
 
@@ -36,6 +40,65 @@ struct DrawInfo {
     curr_time: f32,
     frame: u64,
     fps: f32,
+    uniforms_values: UniformsValues,
+}
+
+#[derive(Clone, Default)]
+pub struct UniformsValues {
+    pub int_values: HashMap<String, i32>,
+    pub float_values: HashMap<String, f32>,
+    pub vec2_values: HashMap<String, [f32; 2]>,
+    pub vec3_values: HashMap<String, [f32; 3]>,
+    pub vec4_values: HashMap<String, [f32; 4]>,
+}
+
+impl UniformsValues {
+    pub fn set_vec3_component(&mut self, name: &str, index: usize, value: f64) {
+        if index > 2 {
+            return;
+        }
+        let fvalue = value as f32;
+        self.vec3_values
+            .entry(name.to_owned())
+            .and_modify(|v| v[index] = fvalue)
+            .or_insert_with(|| {
+                let mut v = [0.0; 3];
+                v[index] = fvalue;
+                v
+            });
+    }
+    pub fn set_vec4_component(&mut self, name: &str, index: usize, value: f64) {
+        let fvalue = value as f32;
+        if index > 3 {
+            return;
+        }
+        self.vec4_values
+            .entry(name.to_owned())
+            .and_modify(|v| v[index] = fvalue)
+            .or_insert_with(|| {
+                let mut v = [0.0; 4];
+                v[index] = fvalue;
+                v
+            });
+    }
+    unsafe fn apply(&self, gl: &glow::Context, program: NativeProgram) {
+        use glow::HasContext as _;
+        for (name, value) in &self.int_values {
+            gl.uniform_1_i32(gl.get_uniform_location(program, name).as_ref(), *value);
+        }
+        for (name, value) in &self.float_values {
+            gl.uniform_1_f32(gl.get_uniform_location(program, name).as_ref(), *value);
+        }
+        for (name, &[a, b]) in &self.vec2_values {
+            gl.uniform_2_f32(gl.get_uniform_location(program, name).as_ref(), a, b);
+        }
+        for (name, &[a, b, c]) in &self.vec3_values {
+            gl.uniform_3_f32(gl.get_uniform_location(program, name).as_ref(), a, b, c);
+        }
+        for (name, &[a, b, c, d]) in &self.vec4_values {
+            gl.uniform_4_f32(gl.get_uniform_location(program, name).as_ref(), a, b, c, d);
+        }
+    }
 }
 
 impl Custom3d {
@@ -67,7 +130,13 @@ impl Custom3d {
         });
     }
 
-    pub fn update(&mut self, _ctx: &egui::Context, ui: &mut Ui, fps: f32) {
+    pub fn update(
+        &mut self,
+        _ctx: &egui::Context,
+        ui: &mut Ui,
+        fps: f32,
+        uniforms_values: &UniformsValues,
+    ) {
         egui::Frame::none().show(ui, |ui| {
             let (rect, response) =
                 ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
@@ -85,6 +154,7 @@ impl Custom3d {
                 curr_time: self.curr_time(),
                 frame: self.frame,
                 fps,
+                uniforms_values: uniforms_values.clone(),
             };
             let shader_compile_request = self.shader_compile_request.take();
             self.frame += 1;
@@ -100,6 +170,7 @@ impl Custom3d {
                         .response_sender
                         .send(ShaderCompileResponse {
                             duration,
+                            preparse_result: Some(preparse_shader(&request.fragment_source)),
                             error: fr.err(),
                         })
                         .ok();
@@ -194,7 +265,7 @@ impl ShaderFrame {
                     0.0,
                     0.0,
                 );
-
+                info.uniforms_values.apply(gl, program);
                 gl.bind_vertex_array(Some(self.vertex_array));
                 gl.draw_arrays(glow::TRIANGLES, 0, 6);
             }

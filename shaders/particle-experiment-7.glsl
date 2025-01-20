@@ -3,15 +3,15 @@
 // License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
 // Tuned via XShade (http://www.funparadigm.com/xshade/)
 
+uniform int n = 100;
+uniform vec3 startColor = vec3(0, 0.64, 0.2);
+uniform vec3 endColor = vec3(0.06, 0.35, 0.85);
+const int xyzy = 1351;
+
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     float t = iTime+5.;
     float z = 6.;
-
-    const int n = 30;// particle count
-
-    vec3 startColor = vec3(0, 0.64, 0.2);
-    vec3 endColor = vec3(0.06, 0.35, 0.85);
 
     float startRadius = 0.84;
     float endRadius = 1.6;
