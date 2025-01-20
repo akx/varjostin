@@ -1,6 +1,5 @@
-use eframe::glow::Context;
-use egui::{Margin, Vec2};
 use crate::shader_frame::Custom3d;
+use eframe::glow;
 
 pub struct VarjostinApp {
     custom3d: Custom3d,
@@ -17,7 +16,6 @@ impl VarjostinApp {
 }
 
 impl eframe::App for VarjostinApp {
-    /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let esc_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
         if esc_pressed {
@@ -26,12 +24,11 @@ impl eframe::App for VarjostinApp {
         egui::SidePanel::right("plop").show(ctx, |ui| {
             ui.heading("uwu");
         });
-        egui::CentralPanel::default(). show(ctx, |ui| {
+        egui::CentralPanel::default().show(ctx, |ui| {
             self.custom3d.update(ctx, ui);
         });
-
     }
-    fn on_exit(&mut self, ctx: Option<&Context>) {
-        self.custom3d.exit(ctx);
+    fn on_exit(&mut self, glow_ctx: Option<&glow::Context>) {
+        self.custom3d.exit(glow_ctx);
     }
 }

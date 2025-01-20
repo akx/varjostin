@@ -1,14 +1,13 @@
 #![allow(clippy::undocumented_unsafe_blocks)]
 
-use eframe::{egui_glow, Frame};
+use eframe::egui_glow;
 use egui::mutex::Mutex;
+use egui::Ui;
 use egui_glow::glow;
 use std::sync::Arc;
-use egui::Ui;
 
 pub struct Custom3d {
-    /// Behind an `Arc<Mutex<…>>` so we can pass it to [`egui::PaintCallback`] and paint later.
-    rotating_triangle: Arc<Mutex<ShaderFrame>>,
+    shader_frame: Arc<Mutex<ShaderFrame>>,
     angle: f32,
 }
 
@@ -16,47 +15,38 @@ impl Custom3d {
     pub fn new<'a>(cc: &'a eframe::CreationContext<'a>) -> Option<Self> {
         let gl = cc.gl.as_ref()?;
         Some(Self {
-            rotating_triangle: Arc::new(Mutex::new(ShaderFrame::new(gl)?)),
+            shader_frame: Arc::new(Mutex::new(ShaderFrame::new(gl)?)),
             angle: 0.0,
         })
     }
 
-    pub fn update(&mut self, ctx: &egui::Context, ui: &mut Ui) {
-        // egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
-            // ui.horizontal(|ui| {
+    pub fn update(&mut self, _ctx: &egui::Context, ui: &mut Ui) {
         egui::Frame::canvas(ui.style()).show(ui, |ui| {
-            self.custom_painting(ui);
+            let (rect, response) =
+                ui.allocate_exact_size(egui::Vec2::splat(512.0), egui::Sense::drag());
+
+            self.angle += response.drag_motion().x * 0.01;
+
+            // Clone locals so we can move them into the paint callback:
+            let angle = self.angle;
+            let f = self.shader_frame.clone();
+
+            let cb = egui_glow::CallbackFn::new(move |_info, painter| {
+                f.lock().paint(painter.gl(), angle);
+            });
+
+            let callback = egui::PaintCallback {
+                rect,
+                callback: Arc::new(cb),
+            };
+            ui.painter().add(callback);
         });
-        // });
     }
 
     pub fn exit(&mut self, gl: Option<&glow::Context>) {
         if let Some(gl) = gl {
-            self.rotating_triangle.lock().destroy(gl);
+            self.shader_frame.lock().destroy(gl);
         }
-    }
-}
-
-impl Custom3d {
-    fn custom_painting(&mut self, ui: &mut egui::Ui) {
-        let (rect, response) =
-            ui.allocate_exact_size(egui::Vec2::splat(300.0), egui::Sense::drag());
-
-        self.angle += response.drag_motion().x * 0.01;
-
-        // Clone locals so we can move them into the paint callback:
-        let angle = self.angle;
-        let rotating_triangle = self.rotating_triangle.clone();
-
-        let cb = egui_glow::CallbackFn::new(move |_info, painter| {
-            rotating_triangle.lock().paint(painter.gl(), angle);
-        });
-
-        let callback = egui::PaintCallback {
-            rect,
-            callback: Arc::new(cb),
-        };
-        ui.painter().add(callback);
     }
 }
 
@@ -76,28 +66,15 @@ impl ShaderFrame {
             let program = gl.create_program().expect("Cannot create program");
 
             if !shader_version.is_new_shader_interface() {
-                log::warn!(
+                panic!(
                     "Custom 3D painting hasn't been ported to {:?}",
                     shader_version
                 );
-                return None;
             }
 
-            let (vertex_shader_source, fragment_shader_source) = (
-                include_str!("vertex.glsl"),
-                r#"
-                    precision mediump float;
-                    in vec4 v_color;
-                    out vec4 out_color;
-                    void main() {
-                        out_color = v_color;
-                    }
-                "#,
-            );
-
             let shader_sources = [
-                (glow::VERTEX_SHADER, vertex_shader_source),
-                (glow::FRAGMENT_SHADER, fragment_shader_source),
+                (glow::VERTEX_SHADER, include_str!("vertex.glsl")),
+                (glow::FRAGMENT_SHADER, include_str!("fragment.glsl")),
             ];
 
             let shaders: Vec<_> = shader_sources
