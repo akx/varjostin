@@ -53,6 +53,12 @@ pub struct UniformsValues {
 }
 
 impl UniformsValues {
+    pub fn set_float_value(&mut self, name: &str, value: f64) {
+        self.float_values.insert(name.to_owned(), value as f32);
+    }
+    pub fn set_int_value(&mut self, name: &str, value: i64) {
+        self.int_values.insert(name.to_owned(), value as i32);
+    }
     pub fn set_vec3_component(&mut self, name: &str, index: usize, value: f64) {
         if index > 2 {
             return;

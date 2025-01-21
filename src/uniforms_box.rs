@@ -1,26 +1,36 @@
 use crate::shader_frame::UniformsValues;
 use crate::shader_parser::{PreparseResult, UniformSpec};
 use egui::Ui;
+use std::ops::RangeInclusive;
 
 pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) {
-    for unif in &ppr.uniforms {
+    for u in &ppr.uniforms {
         ui.group(|ui| {
-            ui.label(unif.name.clone());
-            match &unif.spec {
+            let name = &u.name;
+            ui.label(name.clone());
+            match &u.spec {
                 UniformSpec::Int(spec) => {
-                    let v = spec.default.unwrap_or(0);
-                    let mut val = v;
-                    let range = v.min(0)..=v.max(200);
-                    ui.add(egui::Slider::new(&mut val, range));
+                    let v = match uv.int_values.get(name) {
+                        Some(v) => *v,
+                        None => spec.default.unwrap_or(0),
+                    };
+                    let range = (v as f64).min(0.0)..=(v as f64).max(1.0);
+                    single_component_slider(ui, "", 0, &range, &[v as f32], &mut |_index, val| {
+                        uv.set_int_value(name, val as i64)
+                    });
                 }
                 UniformSpec::Float(spec) => {
-                    let v = spec.default.unwrap_or(0.0);
-                    let mut val = v;
-                    let range = v.min(0.0)..=v.max(1.0);
-                    ui.add(egui::Slider::new(&mut val, range));
+                    let v = match uv.float_values.get(name) {
+                        Some(v) => *v as f32,
+                        None => spec.default.unwrap_or(0.0),
+                    };
+                    let range = (v as f64).min(0.0)..=(v as f64).max(1.0);
+                    single_component_slider(ui, "", 0, &range, &[v], &mut |_index, val| {
+                        uv.set_float_value(name, val)
+                    });
                 }
                 UniformSpec::Vec3(spec) => {
-                    let xyz = match uv.vec3_values.get(&unif.name) {
+                    let xyz = match uv.vec3_values.get(name) {
                         Some(v) => *v,
                         None => spec
                             .default
@@ -28,36 +38,10 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                             .into(),
                     };
                     let range = 0.0..=1.0;
-                    ui.add(
-                        egui::Slider::from_get_set(range.clone(), &mut |set_val: Option<f64>| {
-                            if let Some(val) = set_val {
-                                uv.set_vec3_component(&unif.name, 0, val);
-                                return val;
-                            }
-                            xyz[0] as f64
-                        })
-                        .text("x"),
-                    );
-                    ui.add(
-                        egui::Slider::from_get_set(range.clone(), &mut |set_val: Option<f64>| {
-                            if let Some(val) = set_val {
-                                uv.set_vec3_component(&unif.name, 1, val);
-                                return val;
-                            }
-                            xyz[1] as f64
-                        })
-                        .text("y"),
-                    );
-                    ui.add(
-                        egui::Slider::from_get_set(range, &mut |set_val: Option<f64>| {
-                            if let Some(val) = set_val {
-                                uv.set_vec3_component(&unif.name, 2, val);
-                                return val;
-                            }
-                            xyz[2] as f64
-                        })
-                        .text("z"),
-                    );
+                    let setter = &mut |index, val| uv.set_vec3_component(name, index, val);
+                    single_component_slider(ui, "x", 0, &range, &xyz, setter);
+                    single_component_slider(ui, "y", 1, &range, &xyz, setter);
+                    single_component_slider(ui, "z", 2, &range, &xyz, setter);
                 }
                 _ => {
                     ui.label("Unsupported uniform type");
@@ -65,4 +49,29 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
             }
         });
     }
+}
+
+fn single_component_slider<const N: usize>(
+    ui: &mut Ui,
+    label: &str,
+    index: usize,
+    range: &RangeInclusive<f64>,
+    current: &[f32; N],
+    setter: &mut impl FnMut(usize, f64),
+) {
+    if index >= N {
+        panic!("Index {index} out of bounds for Vec{}", N);
+    }
+    ui.horizontal_wrapped(|ui| {
+        ui.add(
+            egui::Slider::from_get_set(range.clone(), &mut |set_val| {
+                if let Some(val) = set_val {
+                    setter(index, val);
+                    return val;
+                }
+                current[index] as f64
+            })
+            .text(label),
+        );
+    });
 }
