@@ -10,6 +10,8 @@ use varjostin::VarjostinApp;
 struct Cli {
     #[arg(short, long, env = "VARJOSTIN_SHADER")]
     shader: Option<PathBuf>,
+    #[arg(short, long, env = "VARJOSTIN_VSYNC", default_value_t = true)]
+    vsync: bool,
 }
 
 fn main() -> eframe::Result {
@@ -20,6 +22,7 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1280.0, 720.0])
             .with_min_inner_size([300.0, 220.0]),
+        vsync: cli.vsync,
         ..Default::default()
     };
     eframe::run_native(

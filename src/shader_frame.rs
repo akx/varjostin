@@ -232,8 +232,8 @@ impl ShaderFrame {
                 );
                 gl.uniform_4_f32(
                     gl.get_uniform_location(program, "iMouse").as_ref(),
-                    info.mouse_x,
-                    info.mouse_y,
+                    info.mouse_x * pci.pixels_per_point,
+                    pci.screen_size_px[1] as f32 - (info.mouse_y * pci.pixels_per_point),
                     if info.mouse_down { 1.0 } else { 0.0 },
                     0.0,
                 );
