@@ -212,7 +212,7 @@ impl eframe::App for VarjostinApp {
                 ui,
                 self.frame_history.fps(),
                 &self.uniforms_values,
-                Some(&self.texture),
+                &self.texture,
             );
         });
         let err = last_shader_compile_result.and_then(|r| r.error.as_ref());

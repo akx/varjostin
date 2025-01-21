@@ -133,9 +133,7 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                     }
                 }
                 UniformSpec::Sampler2D => {
-                    if ui.button("1").clicked() {
-                        uv.set_sampler2d_value(name, 1);
-                    }
+                    ui.label("art...");
                 }
             }
         });

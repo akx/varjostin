@@ -12,6 +12,18 @@ pub struct PreparseResult {
     pub(crate) uniforms: Vec<UniformInfo>,
 }
 
+impl PreparseResult {
+    pub fn sampler_uniform_names(&self) -> Vec<String> {
+        self.uniforms
+            .iter()
+            .filter_map(|ui| match &ui.spec {
+                UniformSpec::Sampler2D => Some(ui.name.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+}
+
 #[derive(Deserialize, Debug)]
 struct UniformPragmaInfo {
     pub range: Option<[f32; 2]>,

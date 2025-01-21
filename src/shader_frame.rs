@@ -43,7 +43,6 @@ struct DrawInfo {
     frame: u64,
     fps: f32,
     uniforms_values: UniformsValues,
-    texture: Option<TextureHandle>,
 }
 
 impl Custom3d {
@@ -82,7 +81,7 @@ impl Custom3d {
         ui: &mut Ui,
         fps: f32,
         uniforms_values: &UniformsValues,
-        texture: Option<&TextureHandle>,
+        texture: &TextureHandle,
     ) {
         egui::Frame::none().show(ui, |ui| {
             let (rect, response) =
@@ -103,28 +102,37 @@ impl Custom3d {
                 frame: self.frame,
                 fps,
                 uniforms_values: uniforms_values.clone(),
-                texture: texture.cloned(), //TODO: no clone?
             };
             let shader_compile_request = self.shader_compile_request.take();
             self.frame += 1;
             let f = self.shader_frame.clone();
+            let texture = texture.clone();
 
             let cb = egui_glow::CallbackFn::new(move |info, painter| {
                 let mut fl = f.lock();
                 if let Some(request) = &shader_compile_request {
                     let t0 = Instant::now();
-                    let fr = fl.set_shader(painter.gl(), &request.fragment_source);
+                    let prep = preparse_shader(&request.fragment_source);
+                    let sampler_uniform_names = prep
+                        .as_ref()
+                        .map(|prep| prep.sampler_uniform_names())
+                        .unwrap_or_default();
+                    let fr = fl.set_shader(
+                        painter.gl(),
+                        &request.fragment_source,
+                        sampler_uniform_names,
+                    );
                     let duration = Instant::now().duration_since(t0);
                     request
                         .response_sender
                         .send(ShaderCompileResponse {
                             duration,
-                            preparse_result: Some(preparse_shader(&request.fragment_source)),
+                            preparse_result: Some(prep),
                             error: fr.err(),
                         })
                         .ok();
                 }
-                fl.paint(painter, &info, &draw_info);
+                fl.paint(painter, &info, &draw_info, &texture);
             });
 
             let callback = egui::PaintCallback {
@@ -149,6 +157,7 @@ impl Custom3d {
 struct ShaderFrame {
     program: Option<glow::Program>,
     vertex_array: glow::VertexArray,
+    sampler_uniform_names: Vec<String>,
 }
 
 #[allow(unsafe_code)] // we need unsafe code to use glow
@@ -164,13 +173,20 @@ impl ShaderFrame {
             Some(Self {
                 program: None,
                 vertex_array,
+                sampler_uniform_names: Vec::new(),
             })
         }
     }
 
-    fn set_shader(&mut self, gl: &glow::Context, fragment_source: &str) -> eyre::Result<()> {
+    fn set_shader(
+        &mut self,
+        gl: &glow::Context,
+        fragment_source: &str,
+        sampler_uniform_names: Vec<String>,
+    ) -> eyre::Result<()> {
         let program = compile_program(&gl, fragment_source)?;
         self.program = Some(program);
+        self.sampler_uniform_names = sampler_uniform_names;
         Ok(())
     }
 
@@ -184,7 +200,13 @@ impl ShaderFrame {
         }
     }
 
-    fn paint(&self, painter: &Painter, pci: &PaintCallbackInfo, info: &DrawInfo) {
+    fn paint(
+        &self,
+        painter: &Painter,
+        pci: &PaintCallbackInfo,
+        info: &DrawInfo,
+        texture: &TextureHandle,
+    ) {
         use glow::HasContext as _;
         let gl = painter.gl();
         if let Some(program) = self.program {
@@ -215,8 +237,23 @@ impl ShaderFrame {
                     if info.mouse_down { 1.0 } else { 0.0 },
                     0.0,
                 );
-                info.uniforms_values
-                    .apply(painter, gl, program, &info.texture);
+                for (index, name) in self.sampler_uniform_names.iter().enumerate() {
+                    let texture_id = texture.id();
+                    match painter.texture(texture_id) {
+                        Some(texture) => {
+                            gl.active_texture(glow::TEXTURE1 + index as u32);
+                            gl.bind_texture(glow::TEXTURE_2D, Some(texture));
+                            gl.uniform_1_i32(
+                                gl.get_uniform_location(program, &name).as_ref(),
+                                (index + 1) as i32,
+                            );
+                        }
+                        None => {
+                            eprintln!("Texture not found: {:?}", texture_id);
+                        }
+                    }
+                }
+                info.uniforms_values.apply(painter, gl, program);
                 gl.bind_vertex_array(Some(self.vertex_array));
                 gl.draw_arrays(glow::TRIANGLES, 0, 6);
             }
