@@ -3,7 +3,7 @@ use crate::frame_history::FrameHistory;
 use crate::shader_frame::{Custom3d, ShaderCompileResponse, UniformsValues};
 use crate::uniforms_box;
 use eframe::glow;
-use egui::{Align, FontData, FontDefinitions, FontFamily, Label, Pos2, Rect, RichText};
+use egui::{Align, FontData, FontDefinitions, FontFamily, RichText};
 use egui_extras::{Size, StripBuilder};
 use std::path::PathBuf;
 use std::sync::mpsc;
@@ -169,7 +169,15 @@ impl eframe::App for VarjostinApp {
                     self.frame_history.fps()
                 ));
                 if let Some(result) = last_shader_compile_result {
-                    ui.label(format!("Compiled in {:?}", result.duration));
+                    ui.label(format!(
+                        "Compiled{} in {:?}",
+                        if result.error.is_some() {
+                            " with errors"
+                        } else {
+                            ""
+                        },
+                        result.duration
+                    ));
                 }
             });
         });
@@ -186,18 +194,19 @@ impl eframe::App for VarjostinApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             self.custom3d
                 .update(ctx, ui, self.frame_history.fps(), &self.uniforms_values);
-            if let Some(result) = last_shader_compile_result {
-                if let Some(e) = &result.error {
-                    let lbl = Label::new(RichText::new(e.to_string()).color(egui::Color32::RED))
-                        .halign(Align::Min);
-                    let offs = Pos2::new(5.0, 5.0);
-                    ui.put(
-                        Rect::from_min_size(offs, ui.available_size() - offs.to_vec2()),
-                        lbl,
-                    );
-                }
-            }
         });
+        let err = last_shader_compile_result.and_then(|r| r.error.as_ref());
+        let mut show_error = err.is_some();
+        let error_window = egui::Window::new("Compile Error")
+            .fixed_pos(&[50., 50.])
+            .resizable(false)
+            .title_bar(false)
+            .open(&mut show_error)
+            .show(ctx, |ui| {
+                if let Some(e) = err {
+                    ui.label(RichText::new(e.to_string()).color(egui::Color32::RED));
+                }
+            });
         if self.continuous {
             ctx.request_repaint();
         }

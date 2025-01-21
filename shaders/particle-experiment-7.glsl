@@ -8,7 +8,7 @@ uniform int n = 100;
 #pragma @center {range:[-2,2]}
 uniform vec2 center = vec2(0, 0);
 uniform vec3 startColor = vec3(0, 0.64, 0.2);
-uniform vec3 endColor = vec3(0.06, 0.35, 0.85);
+uniform vec4 endColor = vec4(0.06, 0.35, 0.85, 0.0);
 const int xyzy = 1351;
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
@@ -31,7 +31,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     // Mouse axis x => duration
     if (iMouse.z>0.) duration = iMouse.x/s.x * 10.;
 
-    vec3 col = vec3(0.);
+    vec4 col = vec4(0.);
 
     vec2 pm = v.yx*2.8;
 
@@ -65,18 +65,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
         sum += mb;
 
-        col = mix(col, mix(startColor, endColor, distRatio), mb/sum);
+        col = mix(col, mix(vec4(startColor, 1.0), endColor, distRatio), mb/sum);
     }
 
     sum /= float(n);
 
     col = normalize(col) * sum;
 
-    sum = clamp(sum, 0., .4);
+    sum = clamp(sum, 0., .8);
 
-    vec3 tex = vec3(1.);
-
-    col *= smoothstep(tex, vec3(0.), vec3(sum));
-
-    fragColor.rgb = col;
+    fragColor.rgb = col.rgb;
 }
