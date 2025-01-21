@@ -26,9 +26,9 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                         UniformSpec::Float(f) => {
                             uv.set_float_value(name, f.certain_default().into())
                         }
-                        UniformSpec::Vec2(v) => uv.set_vec2_value(name, v.certain_default().into()),
-                        UniformSpec::Vec3(v) => uv.set_vec3_value(name, v.certain_default().into()),
-                        UniformSpec::Vec4(v) => uv.set_vec4_value(name, v.certain_default().into()),
+                        UniformSpec::Vec2(v) => uv.set_vec2_value(name, v.certain_default()),
+                        UniformSpec::Vec3(v) => uv.set_vec3_value(name, v.certain_default()),
+                        UniformSpec::Vec4(v) => uv.set_vec4_value(name, v.certain_default()),
                         UniformSpec::Sampler2D => {}
                     }
                 }
@@ -45,7 +45,7 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                 }
                 UniformSpec::Float(spec) => {
                     let v = match uv.float_values.get(name) {
-                        Some(v) => *v as f32,
+                        Some(v) => { *v },
                         None => spec.default.unwrap_or(0.0),
                     };
                     if let Some(new_value) = single_component_slider(ui, v, "", &u.range) {
@@ -57,8 +57,7 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                         Some(v) => *v,
                         None => spec
                             .default
-                            .unwrap_or_else(|| (0.0f32, 0.0f32).into())
-                            .into(),
+                            .unwrap_or_else(|| (0.0f32, 0.0f32).into()),
                     };
                     let mut changed = false;
                     for index in 0..2 {
@@ -78,8 +77,7 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                         Some(v) => *v,
                         None => spec
                             .default
-                            .unwrap_or_else(|| (0.0f32, 0.0f32, 0.0f32).into())
-                            .into(),
+                            .unwrap_or_else(|| (0.0f32, 0.0f32, 0.0f32).into()),
                     };
                     let mut changed = false;
                     for index in 0..3 {
@@ -107,8 +105,7 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                         Some(v) => *v,
                         None => spec
                             .default
-                            .unwrap_or_else(|| (0.0f32, 0.0f32, 0.0f32, 0.0f32).into())
-                            .into(),
+                            .unwrap_or_else(|| (0.0f32, 0.0f32, 0.0f32, 0.0f32).into()),
                     };
                     let mut changed = false;
                     for index in 0..4 {

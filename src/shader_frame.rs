@@ -86,12 +86,9 @@ impl Custom3d {
         egui::Frame::none().show(ui, |ui| {
             let (rect, response) =
                 ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
-            match response.hover_pos() {
-                Some(pos) => {
-                    self.mouse_x = pos.x;
-                    self.mouse_y = pos.y;
-                }
-                None => {}
+            if let Some(pos) = response.hover_pos() {
+                self.mouse_x = pos.x;
+                self.mouse_y = pos.y;
             }
             self.mouse_down = response.is_pointer_button_down_on();
             let draw_info = DrawInfo {
@@ -184,7 +181,7 @@ impl ShaderFrame {
         fragment_source: &str,
         sampler_uniform_names: Vec<String>,
     ) -> eyre::Result<()> {
-        let program = compile_program(&gl, fragment_source)?;
+        let program = compile_program(gl, fragment_source)?;
         self.program = Some(program);
         self.sampler_uniform_names = sampler_uniform_names;
         Ok(())
@@ -244,7 +241,7 @@ impl ShaderFrame {
                             gl.active_texture(glow::TEXTURE1 + index as u32);
                             gl.bind_texture(glow::TEXTURE_2D, Some(texture));
                             gl.uniform_1_i32(
-                                gl.get_uniform_location(program, &name).as_ref(),
+                                gl.get_uniform_location(program, name).as_ref(),
                                 (index + 1) as i32,
                             );
                         }

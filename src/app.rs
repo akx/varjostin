@@ -52,7 +52,7 @@ impl VarjostinApp {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>, shader_path: Option<PathBuf>) -> Self {
         let ctx = &cc.egui_ctx;
-        egui_extras::install_image_loaders(&ctx);
+        egui_extras::install_image_loaders(ctx);
         ctx.set_theme(egui::Theme::Dark);
         ctx.set_fonts(get_fonts());
         let (scr_sender, scr_receiver) = mpsc::channel();
@@ -218,7 +218,7 @@ impl eframe::App for VarjostinApp {
         let err = last_shader_compile_result.and_then(|r| r.error.as_ref());
         let mut show_error = err.is_some();
         let _error_window = egui::Window::new("Compile Error")
-            .fixed_pos(&[10., 10.])
+            .fixed_pos([10., 10.])
             .min_size([300., 200.])
             .resizable(true)
             .title_bar(false)

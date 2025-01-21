@@ -114,6 +114,7 @@ impl Vec4UniformSpec {
     }
 }
 
+#[derive(Default)]
 struct UniformVisitor {
     uniform_visitations: Vec<UniformVisitation>,
     pragma_infos: HashMap<String, UniformPragmaInfo>,
@@ -128,7 +129,7 @@ impl UniformVisitor {
                 let [min, max] = upi
                     .and_then(|upi| upi.range)
                     .unwrap_or([0.0, 1.0])
-                    .map(|f| f as f32);
+                    .map(|f| f);
                 UniformInfo {
                     name: uv.name.clone(),
                     spec: uv.spec.clone(),
@@ -140,14 +141,6 @@ impl UniformVisitor {
     }
 }
 
-impl Default for UniformVisitor {
-    fn default() -> Self {
-        Self {
-            uniform_visitations: Vec::new(),
-            pragma_infos: HashMap::default(),
-        }
-    }
-}
 
 fn is_uniform(declaration: &SingleDeclaration) -> bool {
     if let Some(qu) = &declaration.ty.qualifier {
@@ -157,7 +150,7 @@ fn is_uniform(declaration: &SingleDeclaration) -> bool {
             }
         }
     }
-    return false;
+    false
 }
 
 impl Visitor for UniformVisitor {
@@ -196,7 +189,7 @@ impl Visitor for UniformVisitor {
                     }
                     glsl::syntax::TypeSpecifierNonArray::Vec2 => {
                         let default = default_vec_from_declaration(declaration)
-                            .map(|v| vec_to_slice_repeating(v));
+                            .map(vec_to_slice_repeating);
                         self.uniform_visitations.push(UniformVisitation {
                             name,
                             spec: UniformSpec::Vec2(Vec2UniformSpec { default }),
@@ -205,7 +198,7 @@ impl Visitor for UniformVisitor {
                     }
                     glsl::syntax::TypeSpecifierNonArray::Vec3 => {
                         let default = default_vec_from_declaration(declaration)
-                            .map(|v| vec_to_slice_repeating(v));
+                            .map(vec_to_slice_repeating);
                         self.uniform_visitations.push(UniformVisitation {
                             name,
                             spec: UniformSpec::Vec3(Vec3UniformSpec { default }),
@@ -214,7 +207,7 @@ impl Visitor for UniformVisitor {
                     }
                     glsl::syntax::TypeSpecifierNonArray::Vec4 => {
                         let default = default_vec_from_declaration(declaration)
-                            .map(|v| vec_to_slice_repeating(v));
+                            .map(vec_to_slice_repeating);
                         self.uniform_visitations.push(UniformVisitation {
                             name,
                             spec: UniformSpec::Vec4(Vec4UniformSpec { default }),
@@ -259,26 +252,23 @@ impl Visitor for UniformVisitor {
 
 fn default_vec_from_declaration(decl: &SingleDeclaration) -> Option<Vec<f32>> {
     if let Some(Initializer::Simple(si)) = &decl.initializer {
-        match si.as_ref() {
-            Expr::FunCall(_fi, args) => {
-                // TODO: check _fi for vec call...
-                let mut vec = Vec::new();
-                for arg in args {
-                    match arg {
-                        Expr::IntConst(i) => vec.push(*i as f32),
-                        Expr::FloatConst(f) => vec.push(*f),
-                        _ => {
-                            eprintln!(
-                                "Unsupported initializer call element for {:?}: {:?}",
-                                decl.name, si
-                            );
-                            return None;
-                        }
+        if let Expr::FunCall(_fi, args) = si.as_ref() {
+            // TODO: check _fi for vec call...
+            let mut vec = Vec::new();
+            for arg in args {
+                match arg {
+                    Expr::IntConst(i) => vec.push(*i as f32),
+                    Expr::FloatConst(f) => vec.push(*f),
+                    _ => {
+                        eprintln!(
+                            "Unsupported initializer call element for {:?}: {:?}",
+                            decl.name, si
+                        );
+                        return None;
                     }
                 }
-                return Some(vec);
             }
-            _ => {}
+            return Some(vec);
         }
     }
     eprintln!(
