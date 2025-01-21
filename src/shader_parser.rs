@@ -22,7 +22,7 @@ pub struct UniformInfo {
     pub name: String,
     pub spec: UniformSpec,
     pub smell: UniformSmell,
-    pub range: RangeInclusive<f64>,
+    pub range: RangeInclusive<f32>,
 }
 
 struct UniformVisitation {
@@ -50,21 +50,55 @@ pub enum UniformSpec {
 pub struct IntUniformSpec {
     pub default: Option<i32>,
 }
+
+impl IntUniformSpec {
+    pub fn certain_default(&self) -> i32 {
+        self.default.unwrap_or(0)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct FloatUniformSpec {
     pub default: Option<f32>,
 }
+
+impl FloatUniformSpec {
+    pub fn certain_default(&self) -> f32 {
+        self.default.unwrap_or(0.0)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Vec2UniformSpec {
     pub default: Option<[f32; 2]>,
 }
+
+impl Vec2UniformSpec {
+    pub fn certain_default(&self) -> [f32; 2] {
+        self.default.unwrap_or([0.0; 2])
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Vec3UniformSpec {
     pub default: Option<[f32; 3]>,
 }
+
+impl Vec3UniformSpec {
+    pub fn certain_default(&self) -> [f32; 3] {
+        self.default.unwrap_or([0.0; 3])
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Vec4UniformSpec {
     pub default: Option<[f32; 4]>,
+}
+
+impl Vec4UniformSpec {
+    pub fn certain_default(&self) -> [f32; 4] {
+        self.default.unwrap_or([0.0; 4])
+    }
 }
 
 struct UniformVisitor {
@@ -81,7 +115,7 @@ impl UniformVisitor {
                 let [min, max] = upi
                     .and_then(|upi| upi.range)
                     .unwrap_or([0.0, 1.0])
-                    .map(|f| f as f64);
+                    .map(|f| f as f32);
                 UniformInfo {
                     name: uv.name.clone(),
                     spec: uv.spec.clone(),

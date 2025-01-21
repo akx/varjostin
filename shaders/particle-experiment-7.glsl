@@ -4,8 +4,9 @@
 // Tuned via XShade (http://www.funparadigm.com/xshade/)
 
 #pragma @n {range:[0,100]}
-#pragma @nenä
 uniform int n = 100;
+#pragma @center {range:[-2,2]}
+uniform vec2 center = vec2(0, 0);
 uniform vec3 startColor = vec3(0, 0.64, 0.2);
 uniform vec3 endColor = vec3(0.06, 0.35, 0.85);
 const int xyzy = 1351;
@@ -19,11 +20,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     float endRadius = 1.6;
 
     float power = 0.51;
-    float duration = 4.;
+    float duration = 3.;
 
-    vec2
-    s = iResolution.xy,
-    v = z*(2.*gl_FragCoord.xy-s)/s.y;
+    vec2 s = iResolution.xy;
+    vec2 v = z*(2.*gl_FragCoord.xy-s)/s.y - center;
 
     // Mouse axis y => zoom
     if (iMouse.z>0.) v *= iMouse.y/s.y * 20.;

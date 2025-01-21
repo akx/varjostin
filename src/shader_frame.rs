@@ -72,33 +72,12 @@ impl UniformsValues {
     pub fn set_vec4_value(&mut self, name: &str, value: [f32; 4]) {
         self.vec4_values.insert(name.to_owned(), value);
     }
-    pub fn set_vec3_component(&mut self, name: &str, index: usize, value: f64) {
-        if index > 2 {
-            return;
-        }
-        let fvalue = value as f32;
-        self.vec3_values
-            .entry(name.to_owned())
-            .and_modify(|v| v[index] = fvalue)
-            .or_insert_with(|| {
-                let mut v = [0.0; 3];
-                v[index] = fvalue;
-                v
-            });
-    }
-    pub fn set_vec4_component(&mut self, name: &str, index: usize, value: f64) {
-        let fvalue = value as f32;
-        if index > 3 {
-            return;
-        }
-        self.vec4_values
-            .entry(name.to_owned())
-            .and_modify(|v| v[index] = fvalue)
-            .or_insert_with(|| {
-                let mut v = [0.0; 4];
-                v[index] = fvalue;
-                v
-            });
+    pub fn clear(&mut self) {
+        self.int_values.clear();
+        self.float_values.clear();
+        self.vec2_values.clear();
+        self.vec3_values.clear();
+        self.vec4_values.clear();
     }
     unsafe fn apply(&self, gl: &glow::Context, program: NativeProgram) {
         use glow::HasContext as _;

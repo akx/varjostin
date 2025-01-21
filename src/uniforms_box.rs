@@ -4,6 +4,9 @@ use egui::{Color32, Rgba, SliderClamping, Ui};
 use std::ops::RangeInclusive;
 
 pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) {
+    if ui.button("clear").clicked() {
+        uv.clear();
+    }
     for u in &ppr.uniforms {
         let labels = match u.smell {
             UniformSmell::Color => ["r", "g", "b", "a"],
@@ -11,55 +14,83 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
         };
         ui.group(|ui| {
             let name = &u.name;
-            ui.label(name.clone());
+            ui.horizontal(|ui| {
+                ui.label(name.clone());
+                if ui
+                    .button("reset")
+                    .on_hover_text("Reset to default")
+                    .clicked()
+                {
+                    match &u.spec {
+                        UniformSpec::Int(i) => uv.set_int_value(name, i.certain_default().into()),
+                        UniformSpec::Float(f) => {
+                            uv.set_float_value(name, f.certain_default().into())
+                        }
+                        UniformSpec::Vec2(v) => uv.set_vec2_value(name, v.certain_default().into()),
+                        UniformSpec::Vec3(v) => uv.set_vec3_value(name, v.certain_default().into()),
+                        UniformSpec::Vec4(v) => uv.set_vec4_value(name, v.certain_default().into()),
+                    }
+                }
+            });
             match &u.spec {
                 UniformSpec::Int(spec) => {
                     let v = match uv.int_values.get(name) {
                         Some(v) => *v,
                         None => spec.default.unwrap_or(0),
                     };
-                    single_component_slider(
-                        ui,
-                        "",
-                        0,
-                        &u.range,
-                        &[v as f32],
-                        &mut |_index, val| uv.set_int_value(name, val as i64),
-                    );
+                    if let Some(new_value) = single_component_slider(ui, v as f32, "", &u.range) {
+                        uv.set_int_value(name, new_value as i64);
+                    }
                 }
                 UniformSpec::Float(spec) => {
                     let v = match uv.float_values.get(name) {
                         Some(v) => *v as f32,
                         None => spec.default.unwrap_or(0.0),
                     };
-                    single_component_slider(ui, "", 0, &u.range, &[v], &mut |_index, val| {
-                        uv.set_float_value(name, val)
-                    });
+                    if let Some(new_value) = single_component_slider(ui, v, "", &u.range) {
+                        uv.set_float_value(name, new_value as f64);
+                    }
                 }
                 UniformSpec::Vec2(spec) => {
-                    let xy = match uv.vec2_values.get(name) {
+                    let mut xy = match uv.vec2_values.get(name) {
                         Some(v) => *v,
                         None => spec
                             .default
                             .unwrap_or_else(|| (0.0f32, 0.0f32).into())
                             .into(),
                     };
-                    let setter = &mut |index, val| uv.set_vec3_component(name, index, val);
+                    let mut changed = false;
                     for index in 0..2 {
-                        single_component_slider(ui, labels[index], index, &u.range, &xy, setter);
+                        if let Some(new_value) =
+                            single_component_slider(ui, xy[index], labels[index], &u.range)
+                        {
+                            changed = true;
+                            xy[index] = new_value;
+                        }
+                    }
+                    if changed {
+                        uv.set_vec2_value(name, xy);
                     }
                 }
                 UniformSpec::Vec3(spec) => {
-                    let xyz = match uv.vec3_values.get(name) {
+                    let mut xyz = match uv.vec3_values.get(name) {
                         Some(v) => *v,
                         None => spec
                             .default
                             .unwrap_or_else(|| (0.0f32, 0.0f32, 0.0f32).into())
                             .into(),
                     };
-                    let setter = &mut |index, val| uv.set_vec3_component(name, index, val);
+                    let mut changed = false;
                     for index in 0..3 {
-                        single_component_slider(ui, labels[index], index, &u.range, &xyz, setter);
+                        if let Some(new_value) =
+                            single_component_slider(ui, xyz[index], labels[index], &u.range)
+                        {
+                            changed = true;
+                            xyz[index] = new_value;
+                        }
+                    }
+                    if changed {
+                        uv.set_vec3_value(name, xyz);
                     }
                     if u.smell == UniformSmell::Color {
                         let rgba = Rgba::from_rgb(xyz[0], xyz[1], xyz[2]);
@@ -71,16 +102,24 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                     }
                 }
                 UniformSpec::Vec4(spec) => {
-                    let xyzw = match uv.vec4_values.get(name) {
+                    let mut xyzw = match uv.vec4_values.get(name) {
                         Some(v) => *v,
                         None => spec
                             .default
                             .unwrap_or_else(|| (0.0f32, 0.0f32, 0.0f32, 0.0f32).into())
                             .into(),
                     };
-                    let setter = &mut |index, val| uv.set_vec4_component(name, index, val);
+                    let mut changed = false;
                     for index in 0..4 {
-                        single_component_slider(ui, labels[index], index, &u.range, &xyzw, setter);
+                        if let Some(new_value) =
+                            single_component_slider(ui, xyzw[index], labels[index], &u.range)
+                        {
+                            changed = true;
+                            xyzw[index] = new_value;
+                        }
+                    }
+                    if changed {
+                        uv.set_vec4_value(name, xyzw);
                     }
                     if u.smell == UniformSmell::Color {
                         let rgba =
@@ -97,28 +136,18 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
     }
 }
 
-fn single_component_slider<const N: usize>(
+fn single_component_slider(
     ui: &mut Ui,
+    current: f32,
     label: &str,
-    index: usize,
-    range: &RangeInclusive<f64>,
-    current: &[f32; N],
-    setter: &mut impl FnMut(usize, f64),
-) {
-    if index >= N {
-        panic!("Index {index} out of bounds for Vec{}", N);
+    range: &RangeInclusive<f32>,
+) -> Option<f32> {
+    let mut current = current;
+    let slidey_boy = egui::Slider::new(&mut current, range.clone())
+        .clamping(SliderClamping::Never)
+        .text(label);
+    if ui.add(slidey_boy).changed() {
+        return Some(current);
     }
-    ui.horizontal_wrapped(|ui| {
-        ui.add(
-            egui::Slider::from_get_set(range.clone(), &mut |set_val| {
-                if let Some(val) = set_val {
-                    setter(index, val);
-                    return val;
-                }
-                current[index] as f64
-            })
-            .clamping(SliderClamping::Never)
-            .text(label),
-        );
-    });
+    None
 }
