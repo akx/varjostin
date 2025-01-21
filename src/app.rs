@@ -198,8 +198,9 @@ impl eframe::App for VarjostinApp {
         let err = last_shader_compile_result.and_then(|r| r.error.as_ref());
         let mut show_error = err.is_some();
         let error_window = egui::Window::new("Compile Error")
-            .fixed_pos(&[50., 50.])
-            .resizable(false)
+            .fixed_pos(&[10., 10.])
+            .min_size([300., 200.])
+            .resizable(true)
             .title_bar(false)
             .open(&mut show_error)
             .show(ctx, |ui| {

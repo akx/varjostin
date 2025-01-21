@@ -23,7 +23,7 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native(
-        "varjostin",
+        "Varjostin",
         native_options,
         Box::new(|cc| Ok(Box::new(VarjostinApp::new(cc, cli.shader)))),
     )
