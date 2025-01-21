@@ -21,7 +21,8 @@ serde = { version = "1", features = ["derive"] }
 glsl = "7.0.0"
 eyre = "0.6.12"
 clap = { version = "4.5.26", features = ["derive", "env"] }
-egui_extras = { version = "0.30.0", features = ["serde"] }
+egui_extras = { version = "0.30.0", features = ["serde", "image"] }
+image = { version = "0.25.5", features = ["jpeg", "png", "webp"] }
 serde_json5 = "0.1.0"
 
 # native:

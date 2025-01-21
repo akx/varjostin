@@ -44,6 +44,7 @@ pub enum UniformSpec {
     Vec2(Vec2UniformSpec),
     Vec3(Vec3UniformSpec),
     Vec4(Vec4UniformSpec),
+    Sampler2D,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -182,11 +183,8 @@ impl Visitor for UniformVisitor {
                         });
                     }
                     glsl::syntax::TypeSpecifierNonArray::Vec2 => {
-                        let default = default_vec_from_declaration(declaration).map(|v| {
-                            let mut arr = [0.0; 2];
-                            arr.copy_from_slice(&v);
-                            arr
-                        });
+                        let default = default_vec_from_declaration(declaration)
+                            .map(|v| vec_to_slice_repeating(v));
                         self.uniform_visitations.push(UniformVisitation {
                             name,
                             spec: UniformSpec::Vec2(Vec2UniformSpec { default }),
@@ -194,11 +192,8 @@ impl Visitor for UniformVisitor {
                         });
                     }
                     glsl::syntax::TypeSpecifierNonArray::Vec3 => {
-                        let default = default_vec_from_declaration(declaration).map(|v| {
-                            let mut arr = [0.0; 3];
-                            arr.copy_from_slice(&v);
-                            arr
-                        });
+                        let default = default_vec_from_declaration(declaration)
+                            .map(|v| vec_to_slice_repeating(v));
                         self.uniform_visitations.push(UniformVisitation {
                             name,
                             spec: UniformSpec::Vec3(Vec3UniformSpec { default }),
@@ -206,14 +201,18 @@ impl Visitor for UniformVisitor {
                         });
                     }
                     glsl::syntax::TypeSpecifierNonArray::Vec4 => {
-                        let default = default_vec_from_declaration(declaration).map(|v| {
-                            let mut arr = [0.0; 4];
-                            arr.copy_from_slice(&v);
-                            arr
-                        });
+                        let default = default_vec_from_declaration(declaration)
+                            .map(|v| vec_to_slice_repeating(v));
                         self.uniform_visitations.push(UniformVisitation {
                             name,
                             spec: UniformSpec::Vec4(Vec4UniformSpec { default }),
+                            smell,
+                        });
+                    }
+                    glsl::syntax::TypeSpecifierNonArray::Sampler2D => {
+                        self.uniform_visitations.push(UniformVisitation {
+                            name,
+                            spec: UniformSpec::Sampler2D,
                             smell,
                         });
                     }
@@ -275,6 +274,16 @@ fn default_vec_from_declaration(decl: &SingleDeclaration) -> Option<Vec<f32>> {
         decl.name, decl.initializer
     );
     None
+}
+
+fn vec_to_slice_repeating<const N: usize>(vec: Vec<f32>) -> [f32; N] {
+    let mut arr = [0.0; N];
+    if !vec.is_empty() {
+        for index in 0..N {
+            arr[index] = vec[index % vec.len()];
+        }
+    }
+    arr
 }
 
 fn default_number_from_declaration(decl: &SingleDeclaration) -> Option<f32> {

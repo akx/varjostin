@@ -1,5 +1,5 @@
-use crate::shader_frame::UniformsValues;
 use crate::shader_parser::{PreparseResult, UniformSmell, UniformSpec};
+use crate::uniforms_values::UniformsValues;
 use egui::{Color32, Rgba, SliderClamping, Ui};
 use std::ops::RangeInclusive;
 
@@ -29,6 +29,7 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                         UniformSpec::Vec2(v) => uv.set_vec2_value(name, v.certain_default().into()),
                         UniformSpec::Vec3(v) => uv.set_vec3_value(name, v.certain_default().into()),
                         UniformSpec::Vec4(v) => uv.set_vec4_value(name, v.certain_default().into()),
+                        UniformSpec::Sampler2D => {}
                     }
                 }
             });
@@ -129,6 +130,11 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                             let (r, g, b, a) = Rgba::from(edit_color).to_tuple();
                             uv.set_vec4_value(name, [r, g, b, a]);
                         }
+                    }
+                }
+                UniformSpec::Sampler2D => {
+                    if ui.button("1").clicked() {
+                        uv.set_sampler2d_value(name, 1);
                     }
                 }
             }
