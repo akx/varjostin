@@ -30,6 +30,8 @@ pub struct Custom3d {
     shader_compile_request: Option<ShaderCompileRequest>,
     pub mouse_x: f32,
     pub mouse_y: f32,
+
+    pub mouse_down: bool,
     pub frame: u64,
 }
 
@@ -52,12 +54,23 @@ pub struct UniformsValues {
     pub vec4_values: HashMap<String, [f32; 4]>,
 }
 
+impl UniformsValues {}
+
 impl UniformsValues {
     pub fn set_float_value(&mut self, name: &str, value: f64) {
         self.float_values.insert(name.to_owned(), value as f32);
     }
     pub fn set_int_value(&mut self, name: &str, value: i64) {
         self.int_values.insert(name.to_owned(), value as i32);
+    }
+    pub fn set_vec3_value(&mut self, name: &str, value: [f32; 3]) {
+        self.vec3_values.insert(name.to_owned(), value);
+    }
+    pub fn set_vec2_value(&mut self, name: &str, value: [f32; 2]) {
+        self.vec2_values.insert(name.to_owned(), value);
+    }
+    pub fn set_vec4_value(&mut self, name: &str, value: [f32; 4]) {
+        self.vec4_values.insert(name.to_owned(), value);
     }
     pub fn set_vec3_component(&mut self, name: &str, index: usize, value: f64) {
         if index > 2 {
@@ -115,6 +128,7 @@ impl Custom3d {
             shader_compile_request: None,
             mouse_x: 0.0,
             mouse_y: 0.0,
+            mouse_down: false,
             frame: 0,
             init_time: Instant::now(),
         })
@@ -153,10 +167,11 @@ impl Custom3d {
                 }
                 None => {}
             }
+            self.mouse_down = response.is_pointer_button_down_on();
             let draw_info = DrawInfo {
                 mouse_x: self.mouse_x,
                 mouse_y: self.mouse_y,
-                mouse_down: response.clicked(),
+                mouse_down: self.mouse_down,
                 curr_time: self.curr_time(),
                 frame: self.frame,
                 fps,

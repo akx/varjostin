@@ -142,8 +142,14 @@ impl eframe::App for VarjostinApp {
                                 format!("Time: {:.2}", self.custom3d.curr_time()),
                                 format!("Frame: {}", self.custom3d.frame),
                                 format!(
-                                    "Mouse: {}x{}",
-                                    self.custom3d.mouse_x as i32, self.custom3d.mouse_y as i32
+                                    "Mouse: {}x{}{}",
+                                    self.custom3d.mouse_x as i32,
+                                    self.custom3d.mouse_y as i32,
+                                    if self.custom3d.mouse_down {
+                                        " (down)"
+                                    } else {
+                                        ""
+                                    }
                                 ),
                             ] {
                                 strip.cell(|ui| {

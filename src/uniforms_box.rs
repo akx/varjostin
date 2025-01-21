@@ -1,6 +1,6 @@
 use crate::shader_frame::UniformsValues;
 use crate::shader_parser::{PreparseResult, UniformSmell, UniformSpec};
-use egui::{SliderClamping, Ui};
+use egui::{Color32, Rgba, SliderClamping, Ui};
 use std::ops::RangeInclusive;
 
 pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) {
@@ -61,6 +61,14 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                     for index in 0..3 {
                         single_component_slider(ui, labels[index], index, &u.range, &xyz, setter);
                     }
+                    if u.smell == UniformSmell::Color {
+                        let rgba = Rgba::from_rgb(xyz[0], xyz[1], xyz[2]);
+                        let mut edit_color = Color32::from(rgba);
+                        if ui.color_edit_button_srgba(&mut edit_color).changed() {
+                            let (r, g, b, _) = Rgba::from(edit_color).to_tuple();
+                            uv.set_vec3_value(name, [r, g, b]);
+                        }
+                    }
                 }
                 UniformSpec::Vec4(spec) => {
                     let xyzw = match uv.vec4_values.get(name) {
@@ -73,6 +81,15 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                     let setter = &mut |index, val| uv.set_vec4_component(name, index, val);
                     for index in 0..4 {
                         single_component_slider(ui, labels[index], index, &u.range, &xyzw, setter);
+                    }
+                    if u.smell == UniformSmell::Color {
+                        let rgba =
+                            Rgba::from_rgba_premultiplied(xyzw[0], xyzw[1], xyzw[2], xyzw[3]);
+                        let mut edit_color = Color32::from(rgba);
+                        if ui.color_edit_button_srgba(&mut edit_color).changed() {
+                            let (r, g, b, a) = Rgba::from(edit_color).to_tuple();
+                            uv.set_vec4_value(name, [r, g, b, a]);
+                        }
                     }
                 }
             }
