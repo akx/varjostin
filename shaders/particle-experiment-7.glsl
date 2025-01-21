@@ -3,6 +3,8 @@
 // License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
 // Tuned via XShade (http://www.funparadigm.com/xshade/)
 
+#pragma @n {range:[0,100]}
+#pragma @nenä
 uniform int n = 100;
 uniform vec3 startColor = vec3(0, 0.64, 0.2);
 uniform vec3 endColor = vec3(0.06, 0.35, 0.85);

@@ -268,7 +268,7 @@ impl ShaderFrame {
                     gl.get_uniform_location(program, "iMouse").as_ref(),
                     info.mouse_x,
                     info.mouse_y,
-                    0.0,
+                    if info.mouse_down { 1.0 } else { 0.0 },
                     0.0,
                 );
                 info.uniforms_values.apply(gl, program);

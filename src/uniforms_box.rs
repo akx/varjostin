@@ -1,10 +1,14 @@
 use crate::shader_frame::UniformsValues;
-use crate::shader_parser::{PreparseResult, UniformSpec};
-use egui::Ui;
+use crate::shader_parser::{PreparseResult, UniformSmell, UniformSpec};
+use egui::{SliderClamping, Ui};
 use std::ops::RangeInclusive;
 
 pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) {
     for u in &ppr.uniforms {
+        let labels = match u.smell {
+            UniformSmell::Color => ["r", "g", "b", "a"],
+            UniformSmell::Unperfumed => ["x", "y", "z", "w"],
+        };
         ui.group(|ui| {
             let name = &u.name;
             ui.label(name.clone());
@@ -14,20 +18,36 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                         Some(v) => *v,
                         None => spec.default.unwrap_or(0),
                     };
-                    let range = (v as f64).min(0.0)..=(v as f64).max(1.0);
-                    single_component_slider(ui, "", 0, &range, &[v as f32], &mut |_index, val| {
-                        uv.set_int_value(name, val as i64)
-                    });
+                    single_component_slider(
+                        ui,
+                        "",
+                        0,
+                        &u.range,
+                        &[v as f32],
+                        &mut |_index, val| uv.set_int_value(name, val as i64),
+                    );
                 }
                 UniformSpec::Float(spec) => {
                     let v = match uv.float_values.get(name) {
                         Some(v) => *v as f32,
                         None => spec.default.unwrap_or(0.0),
                     };
-                    let range = (v as f64).min(0.0)..=(v as f64).max(1.0);
-                    single_component_slider(ui, "", 0, &range, &[v], &mut |_index, val| {
+                    single_component_slider(ui, "", 0, &u.range, &[v], &mut |_index, val| {
                         uv.set_float_value(name, val)
                     });
+                }
+                UniformSpec::Vec2(spec) => {
+                    let xy = match uv.vec2_values.get(name) {
+                        Some(v) => *v,
+                        None => spec
+                            .default
+                            .unwrap_or_else(|| (0.0f32, 0.0f32).into())
+                            .into(),
+                    };
+                    let setter = &mut |index, val| uv.set_vec3_component(name, index, val);
+                    for index in 0..2 {
+                        single_component_slider(ui, labels[index], index, &u.range, &xy, setter);
+                    }
                 }
                 UniformSpec::Vec3(spec) => {
                     let xyz = match uv.vec3_values.get(name) {
@@ -37,14 +57,23 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                             .unwrap_or_else(|| (0.0f32, 0.0f32, 0.0f32).into())
                             .into(),
                     };
-                    let range = 0.0..=1.0;
                     let setter = &mut |index, val| uv.set_vec3_component(name, index, val);
-                    single_component_slider(ui, "x", 0, &range, &xyz, setter);
-                    single_component_slider(ui, "y", 1, &range, &xyz, setter);
-                    single_component_slider(ui, "z", 2, &range, &xyz, setter);
+                    for index in 0..3 {
+                        single_component_slider(ui, labels[index], index, &u.range, &xyz, setter);
+                    }
                 }
-                _ => {
-                    ui.label("Unsupported uniform type");
+                UniformSpec::Vec4(spec) => {
+                    let xyzw = match uv.vec4_values.get(name) {
+                        Some(v) => *v,
+                        None => spec
+                            .default
+                            .unwrap_or_else(|| (0.0f32, 0.0f32, 0.0f32, 0.0f32).into())
+                            .into(),
+                    };
+                    let setter = &mut |index, val| uv.set_vec4_component(name, index, val);
+                    for index in 0..4 {
+                        single_component_slider(ui, labels[index], index, &u.range, &xyzw, setter);
+                    }
                 }
             }
         });
@@ -71,6 +100,7 @@ fn single_component_slider<const N: usize>(
                 }
                 current[index] as f64
             })
+            .clamping(SliderClamping::Never)
             .text(label),
         );
     });

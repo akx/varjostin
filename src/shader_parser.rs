@@ -1,16 +1,31 @@
+use egui::ahash::HashMap;
 use glsl::parser::Parse;
 use glsl::syntax::{
-    Expr, FunctionDefinition, Initializer, ShaderStage, SingleDeclaration, StorageQualifier,
-    TypeQualifierSpec,
+    Expr, FunctionDefinition, Initializer, PreprocessorPragma, ShaderStage, SingleDeclaration,
+    StorageQualifier, TypeQualifierSpec,
 };
 use glsl::visitor::{Host, Visit, Visitor};
+use serde::Deserialize;
+use std::ops::RangeInclusive;
 
 pub struct PreparseResult {
     pub(crate) uniforms: Vec<UniformInfo>,
 }
 
+#[derive(Deserialize, Debug)]
+struct UniformPragmaInfo {
+    pub range: Option<[f32; 2]>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct UniformInfo {
+    pub name: String,
+    pub spec: UniformSpec,
+    pub smell: UniformSmell,
+    pub range: RangeInclusive<f64>,
+}
+
+struct UniformVisitation {
     pub name: String,
     pub spec: UniformSpec,
     pub smell: UniformSmell,
@@ -53,13 +68,36 @@ pub struct Vec4UniformSpec {
 }
 
 struct UniformVisitor {
-    uniforms: Vec<UniformInfo>,
+    uniform_visitations: Vec<UniformVisitation>,
+    pragma_infos: HashMap<String, UniformPragmaInfo>,
+}
+
+impl UniformVisitor {
+    pub(crate) fn bake(&self) -> Vec<UniformInfo> {
+        self.uniform_visitations
+            .iter()
+            .map(|uv| {
+                let upi = self.pragma_infos.get(&uv.name);
+                let [min, max] = upi
+                    .and_then(|upi| upi.range)
+                    .unwrap_or([0.0, 1.0])
+                    .map(|f| f as f64);
+                UniformInfo {
+                    name: uv.name.clone(),
+                    spec: uv.spec.clone(),
+                    smell: uv.smell.clone(),
+                    range: min..=max,
+                }
+            })
+            .collect()
+    }
 }
 
 impl Default for UniformVisitor {
     fn default() -> Self {
         Self {
-            uniforms: Vec::new(),
+            uniform_visitations: Vec::new(),
+            pragma_infos: HashMap::default(),
         }
     }
 }
@@ -93,60 +131,55 @@ impl Visitor for UniformVisitor {
                 };
                 match typ.ty {
                     glsl::syntax::TypeSpecifierNonArray::Int => {
-                        self.uniforms.push(UniformInfo {
+                        let default =
+                            default_number_from_declaration(declaration).map(|i| i as i32);
+                        self.uniform_visitations.push(UniformVisitation {
                             name,
-                            spec: UniformSpec::Int(IntUniformSpec {
-                                default: default_number_from_declaration(declaration)
-                                    .map(|i| i as i32),
-                            }),
+                            spec: UniformSpec::Int(IntUniformSpec { default }),
                             smell,
                         });
                     }
                     glsl::syntax::TypeSpecifierNonArray::Float => {
-                        self.uniforms.push(UniformInfo {
+                        let default = default_number_from_declaration(declaration);
+                        self.uniform_visitations.push(UniformVisitation {
                             name,
-                            spec: UniformSpec::Float(FloatUniformSpec {
-                                default: default_number_from_declaration(declaration),
-                            }),
+                            spec: UniformSpec::Float(FloatUniformSpec { default }),
                             smell,
                         });
                     }
                     glsl::syntax::TypeSpecifierNonArray::Vec2 => {
-                        self.uniforms.push(UniformInfo {
+                        let default = default_vec_from_declaration(declaration).map(|v| {
+                            let mut arr = [0.0; 2];
+                            arr.copy_from_slice(&v);
+                            arr
+                        });
+                        self.uniform_visitations.push(UniformVisitation {
                             name,
-                            spec: UniformSpec::Vec2(Vec2UniformSpec {
-                                default: default_vec_from_declaration(declaration).map(|v| {
-                                    let mut arr = [0.0; 2];
-                                    arr.copy_from_slice(&v);
-                                    arr
-                                }),
-                            }),
+                            spec: UniformSpec::Vec2(Vec2UniformSpec { default }),
                             smell,
                         });
                     }
                     glsl::syntax::TypeSpecifierNonArray::Vec3 => {
-                        self.uniforms.push(UniformInfo {
+                        let default = default_vec_from_declaration(declaration).map(|v| {
+                            let mut arr = [0.0; 3];
+                            arr.copy_from_slice(&v);
+                            arr
+                        });
+                        self.uniform_visitations.push(UniformVisitation {
                             name,
-                            spec: UniformSpec::Vec3(Vec3UniformSpec {
-                                default: default_vec_from_declaration(declaration).map(|v| {
-                                    let mut arr = [0.0; 3];
-                                    arr.copy_from_slice(&v);
-                                    arr
-                                }),
-                            }),
+                            spec: UniformSpec::Vec3(Vec3UniformSpec { default }),
                             smell,
                         });
                     }
                     glsl::syntax::TypeSpecifierNonArray::Vec4 => {
-                        self.uniforms.push(UniformInfo {
+                        let default = default_vec_from_declaration(declaration).map(|v| {
+                            let mut arr = [0.0; 4];
+                            arr.copy_from_slice(&v);
+                            arr
+                        });
+                        self.uniform_visitations.push(UniformVisitation {
                             name,
-                            spec: UniformSpec::Vec4(Vec4UniformSpec {
-                                default: default_vec_from_declaration(declaration).map(|v| {
-                                    let mut arr = [0.0; 4];
-                                    arr.copy_from_slice(&v);
-                                    arr
-                                }),
-                            }),
+                            spec: UniformSpec::Vec4(Vec4UniformSpec { default }),
                             smell,
                         });
                     }
@@ -160,6 +193,21 @@ impl Visitor for UniformVisitor {
         Visit::Parent
     }
     fn visit_function_definition(&mut self, _: &FunctionDefinition) -> Visit {
+        Visit::Parent
+    }
+    fn visit_preprocessor_pragma(&mut self, pragma: &PreprocessorPragma) -> Visit {
+        if pragma.command.starts_with("@") {
+            if let Some((name, rest)) = pragma.command[1..].split_once(' ') {
+                match serde_json5::from_str::<UniformPragmaInfo>(rest) {
+                    Ok(upi) => {
+                        self.pragma_infos.insert(name.to_string(), upi);
+                    }
+                    Err(e) => {
+                        eprintln!("Error parsing pragma {:?}: {:?}", pragma.command, e);
+                    }
+                }
+            }
+        }
         Visit::Parent
     }
 }
@@ -219,6 +267,6 @@ pub fn preparse_shader(source: &str) -> eyre::Result<PreparseResult> {
     let mut visitor = UniformVisitor::default();
     stage.visit(&mut visitor);
     Ok(PreparseResult {
-        uniforms: visitor.uniforms,
+        uniforms: visitor.bake(),
     })
 }
