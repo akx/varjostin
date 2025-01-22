@@ -8,6 +8,9 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
         uv.clear();
     }
     for u in &ppr.uniforms {
+        if matches!(u.spec, UniformSpec::Sampler2D) {
+            continue;
+        }
         let labels = match u.smell {
             UniformSmell::Color => ["r", "g", "b", "a"],
             UniformSmell::Unperfumed => ["x", "y", "z", "w"],
@@ -45,7 +48,7 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                 }
                 UniformSpec::Float(spec) => {
                     let v = match uv.float_values.get(name) {
-                        Some(v) => { *v },
+                        Some(v) => *v,
                         None => spec.default.unwrap_or(0.0),
                     };
                     if let Some(new_value) = single_component_slider(ui, v, "", &u.range) {
@@ -55,9 +58,7 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                 UniformSpec::Vec2(spec) => {
                     let mut xy = match uv.vec2_values.get(name) {
                         Some(v) => *v,
-                        None => spec
-                            .default
-                            .unwrap_or_else(|| (0.0f32, 0.0f32).into()),
+                        None => spec.default.unwrap_or_else(|| (0.0f32, 0.0f32).into()),
                     };
                     let mut changed = false;
                     for index in 0..2 {
@@ -130,7 +131,7 @@ pub fn uniforms_box(uv: &mut UniformsValues, ppr: &PreparseResult, ui: &mut Ui) 
                     }
                 }
                 UniformSpec::Sampler2D => {
-                    ui.label("art...");
+                    unreachable!();
                 }
             }
         });

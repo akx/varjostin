@@ -2,10 +2,11 @@
 
 use crate::gl::compile_program;
 use crate::shader_parser::{preparse_shader, PreparseResult};
+use crate::textures::Textures;
 use crate::uniforms_values::UniformsValues;
 use eframe::egui_glow;
 use eframe::egui_glow::Painter;
-use eframe::epaint::{PaintCallbackInfo, TextureHandle};
+use eframe::epaint::PaintCallbackInfo;
 use egui::mutex::Mutex;
 use egui::Ui;
 use egui_glow::glow;
@@ -84,7 +85,7 @@ impl Custom3d {
         ui: &mut Ui,
         fps: f32,
         uniforms_values: &UniformsValues,
-        texture: &TextureHandle,
+        textures: Textures,
     ) {
         let (rect, response) =
             ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
@@ -115,7 +116,6 @@ impl Custom3d {
         let shader_compile_request = self.shader_compile_request.take();
         self.frame += 1;
         let f = self.shader_frame.clone();
-        let texture = texture.clone();
 
         let cb = egui_glow::CallbackFn::new(move |info, painter| {
             let mut fl = f.lock();
@@ -141,7 +141,7 @@ impl Custom3d {
                     })
                     .ok();
             }
-            fl.paint(painter, &info, &draw_info, &texture);
+            fl.paint(painter, &info, &draw_info, &textures);
         });
 
         let callback = egui::PaintCallback {
@@ -213,7 +213,7 @@ impl ShaderFrame {
         painter: &Painter,
         pci: &PaintCallbackInfo,
         info: &DrawInfo,
-        texture: &TextureHandle,
+        textures: &Textures,
     ) {
         use glow::HasContext as _;
         let gl = painter.gl();
@@ -271,20 +271,20 @@ impl ShaderFrame {
                     0.0,
                 );
                 for (index, name) in self.sampler_uniform_names.iter().enumerate() {
-                    let texture_id = texture.id();
-                    match painter.texture(texture_id) {
-                        Some(texture) => {
-                            gl.active_texture(glow::TEXTURE1 + index as u32);
-                            gl.bind_texture(glow::TEXTURE_2D, Some(texture));
-                            gl.uniform_1_i32(
-                                gl.get_uniform_location(program, name).as_ref(),
-                                (index + 1) as i32,
-                            );
-                        }
-                        None => {
-                            eprintln!("Texture not found: {:?}", texture_id);
-                        }
+                    let maybe_native_texture = textures
+                        .get(index)
+                        .and_then(|t| t.handle.clone())
+                        .and_then(|tex| Some(tex.id()))
+                        .and_then(|texture_id| painter.texture(texture_id));
+                    gl.active_texture(glow::TEXTURE1 + index as u32);
+                    match maybe_native_texture {
+                        Some(texture) => gl.bind_texture(glow::TEXTURE_2D, Some(texture)),
+                        None => gl.bind_texture(glow::TEXTURE_2D, None),
                     }
+                    gl.uniform_1_i32(
+                        gl.get_uniform_location(program, name).as_ref(),
+                        (index + 1) as i32,
+                    );
                 }
                 info.uniforms_values.apply(painter, gl, program);
                 gl.bind_vertex_array(Some(self.vertex_array));

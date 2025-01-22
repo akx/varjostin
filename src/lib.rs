@@ -8,6 +8,7 @@ mod label_strip;
 mod options;
 mod shader_frame;
 mod shader_parser;
+mod textures;
 mod uniforms_box;
 mod uniforms_values;
 

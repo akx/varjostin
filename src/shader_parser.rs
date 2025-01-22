@@ -8,6 +8,7 @@ use glsl::visitor::{Host, Visit, Visitor};
 use serde::Deserialize;
 use std::ops::RangeInclusive;
 
+#[derive(Clone)]
 pub struct PreparseResult {
     pub(crate) uniforms: Vec<UniformInfo>,
 }
@@ -141,7 +142,6 @@ impl UniformVisitor {
     }
 }
 
-
 fn is_uniform(declaration: &SingleDeclaration) -> bool {
     if let Some(qu) = &declaration.ty.qualifier {
         for q in &qu.qualifiers {
@@ -188,8 +188,8 @@ impl Visitor for UniformVisitor {
                         });
                     }
                     glsl::syntax::TypeSpecifierNonArray::Vec2 => {
-                        let default = default_vec_from_declaration(declaration)
-                            .map(vec_to_slice_repeating);
+                        let default =
+                            default_vec_from_declaration(declaration).map(vec_to_slice_repeating);
                         self.uniform_visitations.push(UniformVisitation {
                             name,
                             spec: UniformSpec::Vec2(Vec2UniformSpec { default }),
@@ -197,8 +197,8 @@ impl Visitor for UniformVisitor {
                         });
                     }
                     glsl::syntax::TypeSpecifierNonArray::Vec3 => {
-                        let default = default_vec_from_declaration(declaration)
-                            .map(vec_to_slice_repeating);
+                        let default =
+                            default_vec_from_declaration(declaration).map(vec_to_slice_repeating);
                         self.uniform_visitations.push(UniformVisitation {
                             name,
                             spec: UniformSpec::Vec3(Vec3UniformSpec { default }),
@@ -206,8 +206,8 @@ impl Visitor for UniformVisitor {
                         });
                     }
                     glsl::syntax::TypeSpecifierNonArray::Vec4 => {
-                        let default = default_vec_from_declaration(declaration)
-                            .map(vec_to_slice_repeating);
+                        let default =
+                            default_vec_from_declaration(declaration).map(vec_to_slice_repeating);
                         self.uniform_visitations.push(UniformVisitation {
                             name,
                             spec: UniformSpec::Vec4(Vec4UniformSpec { default }),

@@ -3,14 +3,16 @@ use crate::file_collection::FileCollection;
 use crate::frame_history::FrameHistory;
 use crate::label_strip::label_strip;
 use crate::shader_frame::{Custom3d, ShaderCompileResponse};
+use crate::textures::{Textures, WrappedTexture};
 use crate::uniforms_box;
 use crate::uniforms_values::UniformsValues;
 use clap::Parser;
 use eframe::{glow, Frame};
 use egui::{
     Align, ColorImage, Context, FontData, FontDefinitions, FontFamily, PopupCloseBehavior,
-    RichText, TextureOptions,
+    RichText, TextureHandle, TextureOptions,
 };
+use image::{DynamicImage, ImageError};
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -40,10 +42,11 @@ pub struct VarjostinApp {
     edit_shader_path: String,
     shader_change_state: Option<FileChangeState>,
     uniforms_values: UniformsValues,
-    textures: Vec<egui::TextureHandle>,
+    textures: Textures,
     collections_initialized: bool,
     texture_collection: FileCollection,
     shader_collection: FileCollection,
+    default_texture: TextureHandle,
 }
 
 fn get_fonts() -> FontDefinitions {
@@ -62,8 +65,11 @@ fn get_fonts() -> FontDefinitions {
     fonts
 }
 
-fn load_image_from_memory(image_data: &[u8]) -> Result<ColorImage, image::ImageError> {
-    let image = image::load_from_memory(image_data)?;
+fn load_image_from_memory(image_data: &[u8]) -> Result<ColorImage, ImageError> {
+    to_color_image(image::load_from_memory(image_data)?)
+}
+
+fn to_color_image(image: DynamicImage) -> Result<ColorImage, ImageError> {
     let size = [image.width() as _, image.height() as _];
     let image_buffer = image.to_rgba8();
     let pixels: image::FlatSamples<&[u8]> = image_buffer.as_flat_samples();
@@ -94,6 +100,14 @@ impl VarjostinApp {
         let texture_collection =
             FileCollection::new(&options.images_dir, &[".jpg", ".jpeg", ".png"]);
         let shader_collection = FileCollection::new(&options.shaders_dir, &[".glsl"]);
+        let textures = [
+            WrappedTexture {
+                handle: Some(texture.clone()),
+            },
+            WrappedTexture::default(),
+            WrappedTexture::default(),
+            WrappedTexture::default(),
+        ];
         Self {
             continuous: true,
             collections_initialized: false,
@@ -108,7 +122,8 @@ impl VarjostinApp {
             shader_compile_result_outbox: scr_sender,
             shader_path,
             texture_collection,
-            textures: vec![texture],
+            default_texture: texture,
+            textures,
             uniforms_values: UniformsValues::default(),
         }
     }
@@ -196,6 +211,9 @@ impl VarjostinApp {
                                 }
                             }
                         });
+                    if ui.button("R").on_hover_text("Refresh").clicked() {
+                        self.update_collections();
+                    }
                     if ui
                         .text_edit_singleline(&mut self.edit_shader_path)
                         .lost_focus()
@@ -254,14 +272,66 @@ impl VarjostinApp {
     }
 
     fn uniforms_bar(&mut self, ctx: &Context) {
-        let last_shader_compile_result = self.last_shader_compile_result.as_ref();
+        let last_shader_compile_result = &self.last_shader_compile_result;
         if let Some(result) = last_shader_compile_result {
-            if let Some(Ok(ppr)) = &result.preparse_result {
+            if let Some(Ok(preparse_result)) = &result.preparse_result {
+                let ppr = preparse_result.clone();
+                let texes = &self.texture_collection.files.clone();
                 egui::SidePanel::right("settings")
                     .max_width(250f32)
                     .show(ctx, |ui| {
-                        uniforms_box::uniforms_box(&mut self.uniforms_values, ppr, ui);
+                        uniforms_box::uniforms_box(&mut self.uniforms_values, &ppr, ui);
+                        let uniform_names = ppr.sampler_uniform_names();
+                        for index in 0..4 {
+                            ui.group(|ui| {
+                                let default_label = format!("<<sampler {}>>", index + 1);
+                                let label = uniform_names.get(index).unwrap_or(&default_label);
+                                ui.label(label);
+                                egui::ComboBox::new(format!("tex_select_{}", index), "")
+                                    .selected_text("Texture...")
+                                    .show_ui(ui, |ui| {
+                                        if ui.selectable_label(false, "Default").clicked() {
+                                            self.load_image_at_index(index, ctx, None);
+                                        }
+                                        for (label, path_buf) in texes.iter() {
+                                            if ui.selectable_label(false, label).clicked() {
+                                                self.load_image_at_index(
+                                                    index,
+                                                    ctx,
+                                                    Some(path_buf),
+                                                );
+                                            }
+                                        }
+                                    });
+                            });
+                        }
                     });
+            }
+        }
+    }
+
+    fn load_image_at_index(&mut self, index: usize, ctx: &Context, path_buf: Option<&PathBuf>) {
+        match path_buf {
+            Some(path_buf) => match image::open(path_buf) {
+                Ok(img) => match to_color_image(img) {
+                    Ok(img) => {
+                        let texture = ctx.load_texture(
+                            path_buf.to_string_lossy().to_string(),
+                            img,
+                            TextureOptions::LINEAR,
+                        );
+                        self.textures[index].handle = Some(texture);
+                    }
+                    Err(e) => {
+                        eprintln!("Error converting image: {:?}", e);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("Error loading image: {:?}", e);
+                }
+            },
+            None => {
+                self.textures[index].handle = Some(self.default_texture.clone());
             }
         }
     }
@@ -300,7 +370,7 @@ impl VarjostinApp {
                 ui,
                 self.frame_history.fps(),
                 &self.uniforms_values,
-                &self.textures[0],
+                self.textures.clone(),
             );
         });
         self.error_popup(ctx);
