@@ -1,4 +1,5 @@
 use crate::file_change::{has_changed, FileChangeState};
+use crate::file_collection::FileCollection;
 use crate::frame_history::FrameHistory;
 use crate::label_strip::label_strip;
 use crate::shader_frame::{Custom3d, ShaderCompileResponse};
@@ -7,7 +8,8 @@ use crate::uniforms_values::UniformsValues;
 use clap::Parser;
 use eframe::{glow, Frame};
 use egui::{
-    Align, ColorImage, Context, FontData, FontDefinitions, FontFamily, RichText, TextureOptions,
+    Align, ColorImage, Context, FontData, FontDefinitions, FontFamily, PopupCloseBehavior,
+    RichText, TextureOptions,
 };
 use std::path::PathBuf;
 use std::sync::mpsc;
@@ -21,9 +23,9 @@ pub struct Options {
     #[arg(short, long, env = "VARJOSTIN_VSYNC", default_value_t = true)]
     pub vsync: bool,
     #[arg(long, env = "VARJOSTIN_IMAGES_DIR", default_value = "./images")]
-    images_dir: Option<PathBuf>,
+    images_dir: PathBuf,
     #[arg(long, env = "VARJOSTIN_SHADERS_DIR", default_value = "./shaders")]
-    shaders_dir: Option<PathBuf>,
+    shaders_dir: PathBuf,
 }
 
 pub struct VarjostinApp {
@@ -39,6 +41,9 @@ pub struct VarjostinApp {
     shader_change_state: Option<FileChangeState>,
     uniforms_values: UniformsValues,
     textures: Vec<egui::TextureHandle>,
+    collections_initialized: bool,
+    texture_collection: FileCollection,
+    shader_collection: FileCollection,
 }
 
 fn get_fonts() -> FontDefinitions {
@@ -86,23 +91,52 @@ impl VarjostinApp {
 
         let image = load_image_from_memory(include_bytes!("./texture_05.png")).unwrap();
         let texture = ctx.load_texture("texture_05", image, TextureOptions::LINEAR);
+        let texture_collection =
+            FileCollection::new(&options.images_dir, &[".jpg", ".jpeg", ".png"]);
+        let shader_collection = FileCollection::new(&options.shaders_dir, &[".glsl"]);
         Self {
-            options,
-            custom3d,
             continuous: true,
-            shader_path,
+            collections_initialized: false,
+            custom3d,
+            edit_shader_path,
             frame_history: FrameHistory::default(),
+            last_shader_compile_result: None,
+            options,
+            shader_change_state: None,
+            shader_collection,
             shader_compile_result_inbox: scr_receiver,
             shader_compile_result_outbox: scr_sender,
-            last_shader_compile_result: None,
-            edit_shader_path,
-            shader_change_state: None,
-            uniforms_values: UniformsValues::default(),
+            shader_path,
+            texture_collection,
             textures: vec![texture],
+            uniforms_values: UniformsValues::default(),
+        }
+    }
+
+    fn update_collections(&mut self) {
+        match self.texture_collection.collect_files() {
+            Ok(n) => {
+                eprintln!("Collected {} images", n);
+            }
+            Err(e) => {
+                eprintln!("Error collecting images: {:?}", e);
+            }
+        }
+        match self.shader_collection.collect_files() {
+            Ok(n) => {
+                eprintln!("Collected {} shaders", n);
+            }
+            Err(e) => {
+                eprintln!("Error collecting shaders: {:?}", e);
+            }
         }
     }
 
     fn check_shader_state(&mut self) {
+        if !self.collections_initialized {
+            self.collections_initialized = true;
+            self.update_collections();
+        }
         let change_res = has_changed(
             self.shader_path.as_ref().unwrap(),
             &self.shader_change_state,
@@ -149,6 +183,19 @@ impl VarjostinApp {
             ui.with_layout(
                 egui::Layout::left_to_right(Align::Min).with_cross_justify(true),
                 |ui| {
+                    egui::ComboBox::new("shader_select", "")
+                        .selected_text("Shaders...")
+                        .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+                        .show_ui(ui, |ui| {
+                            for (label, path_buf) in self.shader_collection.files.iter() {
+                                if ui.selectable_label(false, label).clicked() {
+                                    self.shader_path = Some(path_buf.clone());
+                                    self.edit_shader_path =
+                                        path_buf.to_string_lossy().to_string().clone();
+                                    self.shader_change_state = None;
+                                }
+                            }
+                        });
                     if ui
                         .text_edit_singleline(&mut self.edit_shader_path)
                         .lost_focus()

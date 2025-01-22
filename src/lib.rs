@@ -1,6 +1,7 @@
 #![warn(clippy::all, rust_2018_idioms)]
 mod app;
 mod file_change;
+mod file_collection;
 mod frame_history;
 mod gl;
 mod label_strip;
