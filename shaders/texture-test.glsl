@@ -12,6 +12,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     c += sin((c.yx + iTime) * mag) * amp;
     vec4 texColor = texture(tex, c);
     float mouse_dis = distance(iMouse.xy, fragCoord);
-    vec3 actual_color = mix(vec3(1), vec3(1, 0, 0), step(mouse_dis, 50));
+    vec3 actual_color = mix(vec3(1), vec3(1, 0, 0), step(mouse_dis, 50 + iMouse.z * 50));
     fragColor = vec4(actual_color * texColor.rgb, 1.0);
 }

@@ -5,7 +5,9 @@ use crate::uniforms_box;
 use crate::uniforms_values::UniformsValues;
 use clap::Parser;
 use eframe::glow;
-use egui::{Align, ColorImage, FontData, FontDefinitions, FontFamily, RichText, TextureOptions};
+use egui::{
+    Align, ColorImage, Context, FontData, FontDefinitions, FontFamily, RichText, TextureOptions,
+};
 use egui_extras::{Size, StripBuilder};
 use std::path::PathBuf;
 use std::sync::mpsc;
@@ -141,18 +143,8 @@ impl VarjostinApp {
             self.last_shader_compile_result = Some(result);
         }
     }
-}
 
-impl eframe::App for VarjostinApp {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        self.check_shader_state();
-        let last_shader_compile_result = self.last_shader_compile_result.as_ref();
-        self.frame_history
-            .on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
-        let esc_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
-        if esc_pressed {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        }
+    fn top_bar(&mut self, ctx: &Context) {
         egui::TopBottomPanel::top("menu").show(ctx, |ui| {
             ui.with_layout(
                 egui::Layout::left_to_right(Align::Min).with_cross_justify(true),
@@ -192,6 +184,10 @@ impl eframe::App for VarjostinApp {
                 },
             );
         });
+    }
+
+    fn bottom_bar(&mut self, ctx: &Context) {
+        let last_shader_compile_result = self.last_shader_compile_result.as_ref();
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut self.continuous, "Update continuously");
@@ -213,25 +209,23 @@ impl eframe::App for VarjostinApp {
                 }
             });
         });
+    }
+
+    fn uniforms_bar(&mut self, ctx: &Context) {
+        let last_shader_compile_result = self.last_shader_compile_result.as_ref();
         if let Some(result) = last_shader_compile_result {
             if let Some(Ok(ppr)) = &result.preparse_result {
                 egui::SidePanel::right("settings")
-                    .resizable(false)
                     .max_width(250f32)
                     .show(ctx, |ui| {
                         uniforms_box::uniforms_box(&mut self.uniforms_values, ppr, ui);
                     });
             }
         }
-        egui::CentralPanel::default().show(ctx, |ui| {
-            self.custom3d.update(
-                ctx,
-                ui,
-                self.frame_history.fps(),
-                &self.uniforms_values,
-                &self.textures[0],
-            );
-        });
+    }
+
+    fn error_popup(&mut self, ctx: &Context) {
+        let last_shader_compile_result = self.last_shader_compile_result.as_ref();
         let err = last_shader_compile_result.and_then(|r| r.error.as_ref());
         let mut show_error = err.is_some();
         let _error_window = egui::Window::new("Compile Error")
@@ -245,6 +239,31 @@ impl eframe::App for VarjostinApp {
                     ui.label(RichText::new(e.to_string()).color(egui::Color32::RED));
                 }
             });
+    }
+}
+
+impl eframe::App for VarjostinApp {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.check_shader_state();
+        self.frame_history
+            .on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
+        let esc_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
+        if esc_pressed {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+        self.top_bar(ctx);
+        self.bottom_bar(ctx);
+        self.uniforms_bar(ctx);
+        egui::CentralPanel::default().show(ctx, |ui| {
+            self.custom3d.update(
+                ctx,
+                ui,
+                self.frame_history.fps(),
+                &self.uniforms_values,
+                &self.textures[0],
+            );
+        });
+        self.error_popup(ctx);
         if self.continuous {
             ctx.request_repaint();
         }

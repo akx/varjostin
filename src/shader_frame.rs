@@ -30,15 +30,15 @@ pub struct Custom3d {
     shader_compile_request: Option<ShaderCompileRequest>,
     pub mouse_x: f32,
     pub mouse_y: f32,
-
     pub mouse_down: bool,
     pub frame: u64,
+    last_mouse_down_time: Instant,
 }
 
 struct DrawInfo {
     mouse_x: f32,
     mouse_y: f32,
-    mouse_down: bool,
+    mouse_down_seconds: f32,
     curr_time: f32,
     frame: u64,
     fps: f32,
@@ -56,6 +56,7 @@ impl Custom3d {
             mouse_down: false,
             frame: 0,
             init_time: Instant::now(),
+            last_mouse_down_time: Instant::now(),
         })
     }
 
@@ -90,11 +91,19 @@ impl Custom3d {
             self.mouse_x = pos.x - rect.min.x;
             self.mouse_y = pos.y - rect.min.y;
         }
-        self.mouse_down = response.is_pointer_button_down_on();
+        let mouse_down = response.is_pointer_button_down_on();
+        if !self.mouse_down && mouse_down {
+            self.last_mouse_down_time = Instant::now();
+        }
+        self.mouse_down = mouse_down;
         let draw_info = DrawInfo {
             mouse_x: self.mouse_x,
             mouse_y: self.mouse_y,
-            mouse_down: self.mouse_down,
+            mouse_down_seconds: if mouse_down {
+                self.last_mouse_down_time.elapsed().as_secs_f32()
+            } else {
+                0.0
+            },
             curr_time: self.curr_time(),
             frame: self.frame,
             fps,
@@ -255,7 +264,7 @@ impl ShaderFrame {
                     gl.get_uniform_location(program, "iMouse").as_ref(),
                     mouse.0,
                     mouse.1,
-                    if info.mouse_down { 1.0 } else { 0.0 },
+                    info.mouse_down_seconds,
                     0.0,
                 );
                 for (index, name) in self.sampler_uniform_names.iter().enumerate() {
