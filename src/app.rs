@@ -31,6 +31,7 @@ pub struct Options {
 }
 
 pub struct VarjostinApp {
+    #[allow(dead_code)]
     options: Options,
     custom3d: Custom3d,
     continuous: bool,
