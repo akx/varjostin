@@ -15,8 +15,6 @@ pub struct UniformsValues {
     pub vec4_values: HashMap<String, [f32; 4]>,
 }
 
-impl UniformsValues {}
-
 impl UniformsValues {
     pub fn set_float_value(&mut self, name: &str, value: f64) {
         self.float_values.insert(name.to_owned(), value as f32);

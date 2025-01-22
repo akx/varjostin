@@ -1,5 +1,6 @@
 use crate::file_change::{has_changed, FileChangeState};
 use crate::frame_history::FrameHistory;
+use crate::label_strip::label_strip;
 use crate::shader_frame::{Custom3d, ShaderCompileResponse};
 use crate::uniforms_box;
 use crate::uniforms_values::UniformsValues;
@@ -8,7 +9,6 @@ use eframe::{glow, Frame};
 use egui::{
     Align, ColorImage, Context, FontData, FontDefinitions, FontFamily, RichText, TextureOptions,
 };
-use egui_extras::{Size, StripBuilder};
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -159,28 +159,23 @@ impl VarjostinApp {
                     if ui.button("Reset time").clicked() {
                         self.custom3d.reset();
                     }
-                    StripBuilder::new(ui)
-                        .sizes(Size::exact(80.0), 3)
-                        .horizontal(|mut strip| {
-                            for lbl in &[
-                                format!("Time: {:.2}", self.custom3d.curr_time()),
-                                format!("Frame: {}", self.custom3d.frame),
-                                format!(
-                                    "Mouse: {}x{}{}",
-                                    self.custom3d.mouse_x as i32,
-                                    self.custom3d.mouse_y as i32,
-                                    if self.custom3d.mouse_down {
-                                        format!(" ({:.2})", self.custom3d.mouse_down_seconds)
-                                    } else {
-                                        "".to_string()
-                                    }
-                                ),
-                            ] {
-                                strip.cell(|ui| {
-                                    ui.label(lbl);
-                                });
-                            }
-                        });
+                    label_strip(
+                        ui,
+                        vec![
+                            format!("Time: {:.2}", self.custom3d.curr_time()),
+                            format!("Frame: {}", self.custom3d.frame),
+                            format!(
+                                "Mouse: {}x{}{}",
+                                self.custom3d.mouse_x as i32,
+                                self.custom3d.mouse_y as i32,
+                                if self.custom3d.mouse_down {
+                                    format!(" ({:.2})", self.custom3d.mouse_down_seconds)
+                                } else {
+                                    "".to_string()
+                                }
+                            ),
+                        ],
+                    );
                 },
             );
         });
