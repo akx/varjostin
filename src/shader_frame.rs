@@ -83,61 +83,60 @@ impl Custom3d {
         uniforms_values: &UniformsValues,
         texture: &TextureHandle,
     ) {
-        egui::Frame::none().show(ui, |ui| {
-            let (rect, response) =
-                ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
-            if let Some(pos) = response.hover_pos() {
-                self.mouse_x = pos.x;
-                self.mouse_y = pos.y;
+        let (rect, response) =
+            ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
+        if let Some(pos) = response.hover_pos() {
+            // TODO: Why do we need the fudge here?!
+            self.mouse_x = pos.x - rect.min.x;
+            self.mouse_y = pos.y - rect.min.y;
+        }
+        self.mouse_down = response.is_pointer_button_down_on();
+        let draw_info = DrawInfo {
+            mouse_x: self.mouse_x,
+            mouse_y: self.mouse_y,
+            mouse_down: self.mouse_down,
+            curr_time: self.curr_time(),
+            frame: self.frame,
+            fps,
+            uniforms_values: uniforms_values.clone(),
+        };
+        let shader_compile_request = self.shader_compile_request.take();
+        self.frame += 1;
+        let f = self.shader_frame.clone();
+        let texture = texture.clone();
+
+        let cb = egui_glow::CallbackFn::new(move |info, painter| {
+            let mut fl = f.lock();
+            if let Some(request) = &shader_compile_request {
+                let t0 = Instant::now();
+                let prep = preparse_shader(&request.fragment_source);
+                let sampler_uniform_names = prep
+                    .as_ref()
+                    .map(|prep| prep.sampler_uniform_names())
+                    .unwrap_or_default();
+                let fr = fl.set_shader(
+                    painter.gl(),
+                    &request.fragment_source,
+                    sampler_uniform_names,
+                );
+                let duration = Instant::now().duration_since(t0);
+                request
+                    .response_sender
+                    .send(ShaderCompileResponse {
+                        duration,
+                        preparse_result: Some(prep),
+                        error: fr.err(),
+                    })
+                    .ok();
             }
-            self.mouse_down = response.is_pointer_button_down_on();
-            let draw_info = DrawInfo {
-                mouse_x: self.mouse_x,
-                mouse_y: self.mouse_y,
-                mouse_down: self.mouse_down,
-                curr_time: self.curr_time(),
-                frame: self.frame,
-                fps,
-                uniforms_values: uniforms_values.clone(),
-            };
-            let shader_compile_request = self.shader_compile_request.take();
-            self.frame += 1;
-            let f = self.shader_frame.clone();
-            let texture = texture.clone();
-
-            let cb = egui_glow::CallbackFn::new(move |info, painter| {
-                let mut fl = f.lock();
-                if let Some(request) = &shader_compile_request {
-                    let t0 = Instant::now();
-                    let prep = preparse_shader(&request.fragment_source);
-                    let sampler_uniform_names = prep
-                        .as_ref()
-                        .map(|prep| prep.sampler_uniform_names())
-                        .unwrap_or_default();
-                    let fr = fl.set_shader(
-                        painter.gl(),
-                        &request.fragment_source,
-                        sampler_uniform_names,
-                    );
-                    let duration = Instant::now().duration_since(t0);
-                    request
-                        .response_sender
-                        .send(ShaderCompileResponse {
-                            duration,
-                            preparse_result: Some(prep),
-                            error: fr.err(),
-                        })
-                        .ok();
-                }
-                fl.paint(painter, &info, &draw_info, &texture);
-            });
-
-            let callback = egui::PaintCallback {
-                rect,
-                callback: Arc::new(cb),
-            };
-            ui.painter().add(callback);
+            fl.paint(painter, &info, &draw_info, &texture);
         });
+
+        let callback = egui::PaintCallback {
+            rect,
+            callback: Arc::new(cb),
+        };
+        ui.painter().add(callback);
     }
 
     pub fn curr_time(&mut self) -> f32 {
@@ -208,12 +207,37 @@ impl ShaderFrame {
         let gl = painter.gl();
         if let Some(program) = self.program {
             unsafe {
+                // Egui will have configured the viewport already,
+                // so we don't do that.
+
                 gl.use_program(Some(program));
+
+                let view = pci.viewport_in_pixels();
+                let scale = pci.pixels_per_point;
+
+                let vp = (
+                    view.left_px,
+                    view.from_bottom_px,
+                    view.width_px + view.left_px,
+                    view.from_bottom_px + view.height_px,
+                );
+                let mouse = (
+                    info.mouse_x * scale,
+                    view.height_px as f32 - (info.mouse_y * scale),
+                );
+
                 gl.uniform_3_f32(
                     gl.get_uniform_location(program, "iResolution").as_ref(),
-                    pci.screen_size_px[0] as f32,
-                    pci.screen_size_px[1] as f32,
+                    view.width_px as f32,
+                    view.height_px as f32,
                     1.0,
+                );
+                gl.uniform_4_f32(
+                    gl.get_uniform_location(program, "iViewport").as_ref(),
+                    vp.0 as f32,
+                    vp.1 as f32,
+                    vp.2 as f32,
+                    vp.3 as f32,
                 );
                 gl.uniform_1_f32(
                     gl.get_uniform_location(program, "iTime").as_ref(),
@@ -229,8 +253,8 @@ impl ShaderFrame {
                 );
                 gl.uniform_4_f32(
                     gl.get_uniform_location(program, "iMouse").as_ref(),
-                    info.mouse_x * pci.pixels_per_point,
-                    pci.screen_size_px[1] as f32 - (info.mouse_y * pci.pixels_per_point),
+                    mouse.0,
+                    mouse.1,
                     if info.mouse_down { 1.0 } else { 0.0 },
                     0.0,
                 );

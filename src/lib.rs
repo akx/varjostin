@@ -3,9 +3,9 @@ mod app;
 mod file_change;
 mod frame_history;
 mod gl;
+mod options;
 mod shader_frame;
 mod shader_parser;
 mod uniforms_box;
 mod uniforms_values;
-
-pub use app::VarjostinApp;
+pub use app::{Options, VarjostinApp};

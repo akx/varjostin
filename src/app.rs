@@ -3,6 +3,7 @@ use crate::frame_history::FrameHistory;
 use crate::shader_frame::{Custom3d, ShaderCompileResponse};
 use crate::uniforms_box;
 use crate::uniforms_values::UniformsValues;
+use clap::Parser;
 use eframe::glow;
 use egui::{Align, ColorImage, FontData, FontDefinitions, FontFamily, RichText, TextureOptions};
 use egui_extras::{Size, StripBuilder};
@@ -10,7 +11,21 @@ use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Duration;
 
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+pub struct Options {
+    #[arg(short, long, env = "VARJOSTIN_SHADER")]
+    shader: Option<PathBuf>,
+    #[arg(short, long, env = "VARJOSTIN_VSYNC", default_value_t = true)]
+    pub vsync: bool,
+    #[arg(long, env = "VARJOSTIN_IMAGES_DIR", default_value = "./images")]
+    images_dir: Option<PathBuf>,
+    #[arg(long, env = "VARJOSTIN_SHADERS_DIR", default_value = "./shaders")]
+    shaders_dir: Option<PathBuf>,
+}
+
 pub struct VarjostinApp {
+    options: Options,
     custom3d: Custom3d,
     continuous: bool,
     frame_history: FrameHistory,
@@ -21,7 +36,7 @@ pub struct VarjostinApp {
     edit_shader_path: String,
     shader_change_state: Option<FileChangeState>,
     uniforms_values: UniformsValues,
-    texture: egui::TextureHandle,
+    textures: Vec<egui::TextureHandle>,
 }
 
 fn get_fonts() -> FontDefinitions {
@@ -50,7 +65,7 @@ fn load_image_from_memory(image_data: &[u8]) -> Result<ColorImage, image::ImageE
 
 impl VarjostinApp {
     /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>, shader_path: Option<PathBuf>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, options: Options) -> Self {
         let ctx = &cc.egui_ctx;
         egui_extras::install_image_loaders(ctx);
         ctx.set_theme(egui::Theme::Dark);
@@ -61,14 +76,16 @@ impl VarjostinApp {
             include_str!("test_fragment.glsl").to_owned(),
             scr_sender.clone(),
         );
+        let shader_path = options.shader.clone();
         let edit_shader_path = shader_path
             .as_ref()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
 
-        let image = load_image_from_memory(include_bytes!("grove.jpg")).unwrap();
-        let texture = ctx.load_texture("grove", image, TextureOptions::LINEAR_REPEAT);
+        let image = load_image_from_memory(include_bytes!("./texture_05.png")).unwrap();
+        let texture = ctx.load_texture("texture_05", image, TextureOptions::LINEAR);
         Self {
+            options,
             custom3d,
             continuous: true,
             shader_path,
@@ -79,7 +96,7 @@ impl VarjostinApp {
             edit_shader_path,
             shader_change_state: None,
             uniforms_values: UniformsValues::default(),
-            texture,
+            textures: vec![texture],
         }
     }
 
@@ -212,7 +229,7 @@ impl eframe::App for VarjostinApp {
                 ui,
                 self.frame_history.fps(),
                 &self.uniforms_values,
-                &self.texture,
+                &self.textures[0],
             );
         });
         let err = last_shader_compile_result.and_then(|r| r.error.as_ref());

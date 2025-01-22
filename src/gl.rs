@@ -35,7 +35,7 @@ pub fn compile_program(gl: &glow::Context, fragment_source: &str) -> eyre::Resul
                 gl.shader_source(
                     shader,
                     &format!(
-                        "{}\n{}\n#line 1\n{}",
+                        "{}\n{}\n#line 1 1\n{}",
                         shader_version.version_declaration(),
                         shader_prelude,
                         shader_source,
