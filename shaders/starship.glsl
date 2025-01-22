@@ -7,6 +7,9 @@
     My original twigl version:
     https://x.com/XorDev/status/1880344887033569682
 */
+
+uniform sampler2D iChannel0;
+
 void mainImage(out vec4 O, vec2 I)
 {
     //Resolution for scaling
@@ -42,7 +45,7 @@ void mainImage(out vec4 O, vec2 I)
     //The y-axis is also stretched a little for a glare effect.
     //Try a higher value like 4 for more clarity
     / length(max(p,
-    p / vec2(texture(iChannel0, p/exp(sin(i)+5.)+vec2(t, i)/8.).r*40., 2))
+    p / vec2(texture(iChannel0, p/exp(sin(i)+5.)+vec2(t, i)/8.).b*40., 2))
     ))
 
     ///Shift position for each particle:
@@ -53,4 +56,5 @@ void mainImage(out vec4 O, vec2 I)
 
     //Add sky background and "tanh" tonemap
     O = tanh(.01*p.y*vec4(0, 1, 2, 3)+O*O/1e4);
+    O.a = 1;
 }

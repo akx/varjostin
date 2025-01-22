@@ -31,6 +31,7 @@ impl FileCollection {
                 files.push((name.parse()?, PathBuf::from(entry.path())));
             }
         }
+        files.sort_by(|a, b| a.0.cmp(&b.0));
         self.files = files;
         Ok(self.files.len())
     }

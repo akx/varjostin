@@ -152,11 +152,15 @@ impl VarjostinApp {
             self.collections_initialized = true;
             self.update_collections();
         }
-        let change_res = has_changed(
-            self.shader_path.as_ref().unwrap(),
-            &self.shader_change_state,
-            Duration::from_millis(200),
-        );
+        let change_res = if self.shader_path.is_some() {
+            has_changed(
+                self.shader_path.as_ref().unwrap(),
+                &self.shader_change_state,
+                Duration::from_millis(200),
+            )
+        } else {
+            Ok(None)
+        };
         match change_res {
             Ok(Some(new_state)) => {
                 eprintln!("Shader changed: {:?}", new_state);
@@ -341,7 +345,7 @@ impl VarjostinApp {
         let err = last_shader_compile_result.and_then(|r| r.error.as_ref());
         let mut show_error = err.is_some();
         let _error_window = egui::Window::new("Compile Error")
-            .fixed_pos([10., 10.])
+            .fixed_pos([10., 25.])
             .min_size([300., 200.])
             .resizable(true)
             .title_bar(false)
