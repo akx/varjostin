@@ -31,6 +31,7 @@ pub struct Custom3d {
     pub mouse_x: f32,
     pub mouse_y: f32,
     pub mouse_down: bool,
+    pub mouse_down_seconds: f32,
     pub frame: u64,
     last_mouse_down_time: Instant,
 }
@@ -54,6 +55,7 @@ impl Custom3d {
             mouse_x: 0.0,
             mouse_y: 0.0,
             mouse_down: false,
+            mouse_down_seconds: 0.0,
             frame: 0,
             init_time: Instant::now(),
             last_mouse_down_time: Instant::now(),
@@ -96,14 +98,15 @@ impl Custom3d {
             self.last_mouse_down_time = Instant::now();
         }
         self.mouse_down = mouse_down;
+        self.mouse_down_seconds = if mouse_down {
+            self.last_mouse_down_time.elapsed().as_secs_f32()
+        } else {
+            0.0
+        };
         let draw_info = DrawInfo {
             mouse_x: self.mouse_x,
             mouse_y: self.mouse_y,
-            mouse_down_seconds: if mouse_down {
-                self.last_mouse_down_time.elapsed().as_secs_f32()
-            } else {
-                0.0
-            },
+            mouse_down_seconds: self.mouse_down_seconds,
             curr_time: self.curr_time(),
             frame: self.frame,
             fps,

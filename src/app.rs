@@ -4,7 +4,7 @@ use crate::shader_frame::{Custom3d, ShaderCompileResponse};
 use crate::uniforms_box;
 use crate::uniforms_values::UniformsValues;
 use clap::Parser;
-use eframe::glow;
+use eframe::{glow, Frame};
 use egui::{
     Align, ColorImage, Context, FontData, FontDefinitions, FontFamily, RichText, TextureOptions,
 };
@@ -170,9 +170,9 @@ impl VarjostinApp {
                                     self.custom3d.mouse_x as i32,
                                     self.custom3d.mouse_y as i32,
                                     if self.custom3d.mouse_down {
-                                        " (down)"
+                                        format!(" ({:.2})", self.custom3d.mouse_down_seconds)
                                     } else {
-                                        ""
+                                        "".to_string()
                                     }
                                 ),
                             ] {
@@ -240,10 +240,8 @@ impl VarjostinApp {
                 }
             });
     }
-}
 
-impl eframe::App for VarjostinApp {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn do_the_thing(&mut self, ctx: &Context, frame: &mut Frame) {
         self.check_shader_state();
         self.frame_history
             .on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
@@ -267,6 +265,12 @@ impl eframe::App for VarjostinApp {
         if self.continuous {
             ctx.request_repaint();
         }
+    }
+}
+
+impl eframe::App for VarjostinApp {
+    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
+        self.do_the_thing(ctx, frame);
     }
     fn on_exit(&mut self, glow_ctx: Option<&glow::Context>) {
         self.custom3d.exit(glow_ctx);
