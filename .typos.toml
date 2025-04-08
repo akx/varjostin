@@ -1,0 +1,5 @@
+[files]
+extend-exclude = ["*.glsl"]
+
+[default.extend-words]
+egui = "egui"

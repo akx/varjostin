@@ -1,0 +1,42 @@
+[package]
+name = "varjostin"
+version = "0.1.0"
+authors = ["Aarni Koskela <akx@iki.fi>"]
+edition = "2024"
+publish = false
+license = "MIT"
+
+[dependencies]
+egui = "0.31.1"
+eframe = { version = "0.31", default-features = false, features = [
+    "glow",
+    "default_fonts",
+    "wayland"
+] }
+clap = { version = "4.5.35", features = ["derive", "env"] }
+egui_extras = { version = "0.31.1", features = ["serde", "image"] }
+env_logger = "0.11"
+eyre = "0.6.12"
+glsl = "7.0.0"
+image = { version = "0.25.6", features = ["jpeg", "png", "webp"] }
+serde = { version = "1", features = ["derive"] }
+serde_json5 = "0.2.1"
+walkdir = "2.5.0"
+
+[profile.release]
+opt-level = 2
+
+# Optimize all dependencies even in debug builds:
+[profile.dev.package."*"]
+opt-level = 2
+
+
+[patch.crates-io]
+
+# If you want to use the bleeding edge version of egui and eframe:
+# egui = { git = "https://github.com/emilk/egui", branch = "master" }
+# eframe = { git = "https://github.com/emilk/egui", branch = "master" }
+
+# If you fork https://github.com/emilk/egui you can test with:
+# egui = { path = "../egui/crates/egui" }
+# eframe = { path = "../egui/crates/eframe" }
